@@ -177,6 +177,17 @@ Issues and PRs welcome. Particularly interested in:
 - Additional perspectives beyond the four core agents
 - Improvements to the synthesis prompt and dashboard layout
 
+## Privacy
+
+This plugin runs entirely in your local Claude Code environment using your own Anthropic API credentials. The maintainers do **not** collect, transmit, or store any data related to your documents or usage:
+
+- Your documents are sent directly from your machine to Anthropic's API. They never touch any server operated by the plugin author.
+- The plugin author has no access to your API key, your prompts, the agents' responses, or the generated HTML reports.
+- The plugin has no telemetry, analytics, or third-party tracking.
+- All generated review files are saved to your local filesystem only.
+
+If you fork, modify, or redistribute this plugin, please preserve this property or update this section to reflect any changes.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
