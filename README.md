@@ -2,7 +2,7 @@
 
 > Multi-agent red team review for PRDs. Four parallel critics produce a single HTML dashboard grounded in concrete scenarios, external citations, confidence scores, and falsification conditions.
 
-**[Live demo](examples/housing-prd-review.html)** · [Install](#install) · [Usage](#usage) · [How it works](#how-it-works)
+**[Live demo](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-prd-review.html)** · [Install](#install) · [Usage](#usage) · [How it works](#how-it-works)
 
 ---
 
