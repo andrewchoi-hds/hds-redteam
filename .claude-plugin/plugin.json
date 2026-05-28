@@ -1,6 +1,6 @@
 {
   "name": "hds-redteam",
-  "description": "Multi-agent red team review for PRDs. Four parallel critics (logic, technical, UX, business) produce a single HTML dashboard with concrete scenarios, external citations, confidence scores, and falsification conditions.",
+  "description": "Multi-agent red-team review for proposal-style documents (PRDs, technical RFCs, business plans, security reviews). Five modes (-prd, -sec, -rfc, -biz, default) tailor four parallel critics — logic, technical, UX/audience, business risk — to each domain. Outputs a single self-contained HTML dashboard with concrete scenarios, external citations, confidence scores, and falsification conditions.",
   "version": "1.0.0",
   "author": {
     "name": "andrew",
