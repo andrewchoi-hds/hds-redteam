@@ -1,0 +1,14 @@
+{
+  "name": "hds-redteam-marketplace",
+  "owner": {
+    "name": "andrew",
+    "url": "https://github.com/andrewchoi-hds"
+  },
+  "plugins": [
+    {
+      "name": "hds-redteam",
+      "source": "./",
+      "description": "Multi-agent red-team review for proposal-style documents. Five modes (-prd, -sec, -rfc, -biz, default) tailor four parallel critics — logic, technical, UX/audience, business risk — to each domain. Outputs a single self-contained HTML dashboard with concrete scenarios, external citations, confidence scores, and falsification conditions."
+    }
+  ]
+}
