@@ -1,0 +1,23 @@
+{
+  "name": "hds-redteam",
+  "description": "Multi-agent red team review for PRDs. Four parallel critics (logic, technical, UX, business) produce a single HTML dashboard with concrete scenarios, external citations, confidence scores, and falsification conditions.",
+  "version": "1.0.0",
+  "author": {
+    "name": "andrew",
+    "url": "https://github.com/andrewchoi-hds"
+  },
+  "homepage": "https://github.com/andrewchoi-hds/hds-redteam",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andrewchoi-hds/hds-redteam.git"
+  },
+  "license": "MIT",
+  "keywords": [
+    "prd",
+    "review",
+    "red-team",
+    "critique",
+    "product-management",
+    "multi-agent"
+  ]
+}
