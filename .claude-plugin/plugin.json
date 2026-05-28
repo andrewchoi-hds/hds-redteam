@@ -7,10 +7,7 @@
     "url": "https://github.com/andrewchoi-hds"
   },
   "homepage": "https://github.com/andrewchoi-hds/hds-redteam",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/andrewchoi-hds/hds-redteam.git"
-  },
+  "repository": "https://github.com/andrewchoi-hds/hds-redteam",
   "license": "MIT",
   "keywords": [
     "prd",
