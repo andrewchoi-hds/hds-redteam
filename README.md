@@ -162,8 +162,11 @@ hds-redteam/
 │   └── redteam-business.md
 ├── commands/
 │   └── redteam.md
+├── templates/
+│   └── dashboard.html        # canonical dashboard template + data contract
 ├── examples/
 │   └── housing-prd-review.html
+├── CHANGELOG.md
 ├── README.md
 └── LICENSE
 ```

@@ -38,6 +38,12 @@ For every finding, fill in **all seven fields**:
 
 Location: <document location with quote, or "missing">
 
+Likelihood: HIGH/MEDIUM/LOW — how often a real user actually hits this (one-line reason)
+
+Impact: HIGH/MEDIUM/LOW — how badly it hurts the user/audience when hit (one-line reason)
+  (Severity above is your overall priority call and should roughly track Likelihood × Impact.
+   These two axes are reported separately because they drive the risk matrix.)
+
 Confidence: HIGH/MEDIUM/LOW + one-line reason
 
 Scenario: audience member's journey

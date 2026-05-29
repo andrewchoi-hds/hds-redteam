@@ -36,6 +36,12 @@ For every finding, fill in **all seven fields**:
 
 Location: <which part of the document, with a direct quote>
 
+Likelihood: HIGH/MEDIUM/LOW — how likely this gap actually triggers in real use (one-line reason)
+
+Impact: HIGH/MEDIUM/LOW — how damaging it is when it does trigger (one-line reason)
+  (Severity above is your overall priority call and should roughly track Likelihood × Impact.
+   These two axes are reported separately because they drive the risk matrix.)
+
 Confidence: HIGH/MEDIUM/LOW
   - HIGH: directly verifiable from document text alone
   - MEDIUM: some inference from unstated assumptions

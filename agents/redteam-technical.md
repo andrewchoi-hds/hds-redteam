@@ -37,6 +37,12 @@ For every finding, fill in **all seven fields**:
 
 Location: <document location with a direct quote>
 
+Likelihood: HIGH/MEDIUM/LOW — how likely this gap actually triggers in production (one-line reason)
+
+Impact: HIGH/MEDIUM/LOW — blast radius when it does trigger (one-line reason)
+  (Severity above is your overall priority call and should roughly track Likelihood × Impact.
+   These two axes are reported separately because they drive the risk matrix.)
+
 Confidence: HIGH/MEDIUM/LOW + one-line reason
 
 Scenario: production / operational failure case

@@ -37,6 +37,12 @@ For every finding, fill in **all seven fields**:
 
 Location: <document location with quote, or "missing">
 
+Likelihood: HIGH/MEDIUM/LOW — how probable this risk materializes (one-line reason)
+
+Impact: HIGH/MEDIUM/LOW — financial/legal/reputational damage when it does (one-line reason)
+  (Severity above is your overall priority call and should roughly track Likelihood × Impact.
+   These two axes are reported separately because they drive the risk matrix.)
+
 Confidence: HIGH/MEDIUM/LOW + one-line reason
 
 Scenario: business / regulatory case

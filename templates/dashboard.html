@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<!--
+═══════════════════════════════════════════════════════════════════════════
+  hds-redteam · DASHBOARD TEMPLATE
+  The /redteam command reads this file, keeps the <style> block VERBATIM,
+  and replaces every {{TOKEN}} and the marked body regions with synthesized
+  findings. Do NOT rewrite the CSS — reuse it exactly so output stays
+  consistent across runs.
+───────────────────────────────────────────────────────────────────────────
+  DATA CONTRACT (how agent output maps to this template)
+
+  • Severity → dot color class:  Critical=.crit  High=.high  Medium=.med  Low=.low
+  • Confidence (categorical → %): HIGH=90  MEDIUM=65  LOW=35
+        confidence-fill width = that %  ·  bar color stays --ok
+        tag class: HIGH→.confidence-hi  MEDIUM/LOW→.confidence-mid
+  • Risk Matrix axes come from each finding's Likelihood and Impact lines
+        (NOT from severity). Cell = (Likelihood column) × (Impact row).
+        Column order L→R: LOW, MED, HIGH   ·   Row order top→bottom: HIGH, MED, LOW
+        Cell tone class: pick the more alarming of the two axes —
+          both/either HIGH → .danger ; one MED → .warn ; one+ MED low → .caution ; else .calm
+  • Blocker CARDS are generated for every Critical AND High finding.
+        Medium/Low appear only as dots in the matrix.
+        Number cards C1..Cn (Critical) then H1..Hn (High); reuse the same IDs as the matrix dots.
+
+  VERDICT RULES (status text + accent):
+    ≥1 Critical                      → blocking verdict (red)
+    0 Critical & ≥3 High             → conditional verdict (orange)  — set .verdict accent to --high
+    0 Critical & <3 High             → pass-ish verdict (green)      — set .verdict accent to --ok
+  Verdict label by mode:
+    -prd → NO-GO / CONDITIONAL / GO            blockers="Release blockers"
+    -sec → DO NOT DEPLOY / CONDITIONAL / CLEAR blockers="Critical vulnerabilities"
+    -rfc → NEEDS REVISION / MINOR REVISION / APPROVED  blockers="Design blockers"
+    -biz → DO NOT LAUNCH / CONDITIONAL / GO     blockers="Execution blockers"
+    none → NEEDS WORK / MINOR / OK              blockers="Blocking issues"
+
+  LOCALIZATION: translate every {{LABEL_*}} token AND the section headings,
+  row labels, axis labels, and toggle text into the DOCUMENT's language
+  (Korean doc → Korean chrome). Keep severity words (Critical/High/…) as-is
+  or localize consistently — your choice, but be consistent.
+═══════════════════════════════════════════════════════════════════════════
+-->
+<html lang="{{DOC_LANG}}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Red Team Review · {{DOC_TITLE}}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0a;
+    --bg-elev: #141414;
+    --bg-card: #1a1a1a;
+    --border: #262626;
+    --border-strong: #3f3f3f;
+    --text: #e5e5e5;
+    --text-dim: #a3a3a3;
+    --text-faint: #737373;
+    --text-strong: #fafafa;
+    --critical: #ef4444;
+    --critical-bg: rgba(239, 68, 68, 0.08);
+    --high: #f97316;
+    --high-bg: rgba(249, 115, 22, 0.08);
+    --medium: #eab308;
+    --medium-bg: rgba(234, 179, 8, 0.08);
+    --low: #71717a;
+    --accent: #3b82f6;
+    --accent-bg: rgba(59, 130, 246, 0.08);
+    --ok: #22c55e;
+    /* --verdict: set to --critical | --high | --ok per VERDICT RULES */
+    --verdict: var(--critical);
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Pretendard', 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+    font-feature-settings: "cv11", "ss01";
+  }
+  .container {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 56px 32px 96px;
+  }
+  .mono {
+    font-family: 'SF Mono', 'JetBrains Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 0.85em;
+    letter-spacing: 0;
+  }
+  /* ───── Header / Verdict ───── */
+  .verdict {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 32px;
+    align-items: center;
+    padding: 36px 40px;
+    background: linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.02));
+    border: 1px solid var(--verdict);
+    border-radius: 12px;
+    margin-bottom: 48px;
+  }
+  .verdict-status {
+    font-size: 56px;
+    font-weight: 800;
+    color: var(--verdict);
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+  .verdict h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-strong);
+    margin-bottom: 6px;
+    letter-spacing: -0.02em;
+  }
+  .verdict-tagline {
+    color: var(--text-dim);
+    font-size: 15px;
+    margin-bottom: 14px;
+  }
+  .verdict-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 24px;
+    font-size: 12.5px;
+    color: var(--text-faint);
+  }
+  .verdict-meta span::before { content: "·"; margin-right: 8px; color: var(--border-strong); }
+  .verdict-meta span:first-child::before { content: ""; margin-right: 0; }
+
+  /* ───── Section ───── */
+  section { margin-bottom: 56px; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 14px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  h2 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-strong);
+  }
+  .section-sub {
+    color: var(--text-faint);
+    font-size: 12.5px;
+  }
+
+  /* ───── Risk Matrix ───── */
+  .matrix-wrap {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .matrix-y-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .matrix-main {
+    display: grid;
+    grid-template-rows: repeat(3, 1fr) auto;
+    gap: 4px;
+  }
+  .matrix-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .matrix-x-labels {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .matrix-x-labels div {
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .matrix-cell {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    min-height: 120px;
+    padding: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 6px;
+    position: relative;
+  }
+  .matrix-cell.danger { background: var(--critical-bg); border-color: rgba(239,68,68,0.3); }
+  .matrix-cell.warn { background: var(--high-bg); border-color: rgba(249,115,22,0.2); }
+  .matrix-cell.caution { background: var(--medium-bg); border-color: rgba(234,179,8,0.18); }
+  .matrix-cell.calm { background: var(--bg-elev); }
+  .matrix-cell-label {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+  .dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    cursor: help;
+    transition: transform 0.15s;
+  }
+  .dot:hover { transform: scale(1.15); }
+  .dot.crit { background: var(--critical); }
+  .dot.high { background: var(--high); }
+  .dot.med { background: var(--medium); color: #1a1a1a; }
+  .dot.low { background: var(--low); }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch {
+    width: 12px; height: 12px; border-radius: 3px;
+  }
+
+  /* ───── Blocker Cards ───── */
+  .blocker {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .blocker.crit { border-left: 3px solid var(--critical); }
+  .blocker.high { border-left: 3px solid var(--high); }
+  .blocker:hover { border-color: var(--border-strong); }
+
+  .blocker-head {
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    gap: 18px;
+    align-items: center;
+    padding: 20px 24px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .blocker-num {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--critical);
+    line-height: 1;
+  }
+  .blocker.high .blocker-num { color: var(--high); }
+  .blocker-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-strong);
+    margin-bottom: 4px;
+  }
+  .blocker-tag-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--bg-elev);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    letter-spacing: 0.04em;
+  }
+  .tag.crit { color: var(--critical); border-color: rgba(239,68,68,0.3); background: var(--critical-bg); }
+  .tag.high { color: var(--high); border-color: rgba(249,115,22,0.3); background: var(--high-bg); }
+  .tag.confidence-hi { color: var(--ok); border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.06); }
+  .tag.confidence-mid { color: var(--medium); border-color: rgba(234,179,8,0.3); background: var(--medium-bg); }
+
+  .blocker-perspectives {
+    display: flex;
+    gap: 4px;
+  }
+  .perspective {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--border-strong);
+  }
+  .perspective.active { background: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
+
+  .blocker-toggle {
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .blocker[open] .blocker-toggle::before { content: "{{LABEL_COLLAPSE}}"; }
+  .blocker:not([open]) .blocker-toggle::before { content: "{{LABEL_EXPAND}}"; }
+
+  .blocker-body {
+    padding: 0 24px 28px 82px;
+    border-top: 1px solid var(--border);
+    padding-top: 24px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 24px;
+    padding: 14px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .row:last-child { border-bottom: none; }
+  .row-label {
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding-top: 2px;
+  }
+  .row-content { color: var(--text); }
+  .row-content strong { color: var(--text-strong); }
+  .row-content .citation {
+    display: block;
+    margin-top: 6px;
+    padding-left: 12px;
+    border-left: 2px solid var(--accent);
+    color: var(--text-dim);
+    font-size: 13.5px;
+  }
+  .row-content .citation .src {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 11px;
+    color: var(--text-faint);
+    display: block;
+    margin-top: 2px;
+  }
+  .scenario {
+    background: var(--bg-elev);
+    border-radius: 8px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 14px;
+  }
+  .scenario-step {
+    display: flex;
+    gap: 12px;
+    padding: 4px 0;
+  }
+  .scenario-step::before {
+    content: "→";
+    color: var(--text-faint);
+    flex-shrink: 0;
+  }
+  .scenario-step.bad::before { content: "✖"; color: var(--critical); }
+  .scenario-step.cur::before { content: "▸"; color: var(--accent); }
+
+  .falsify {
+    background: rgba(34,197,94,0.04);
+    border: 1px dashed rgba(34,197,94,0.3);
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: var(--text-dim);
+    font-size: 13.5px;
+  }
+  .falsify strong { color: var(--ok); }
+
+  .close-method {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    background: var(--accent-bg);
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 6px;
+    padding: 10px 16px;
+  }
+  .close-who {
+    color: var(--text-strong);
+    font-weight: 500;
+    font-size: 14px;
+  }
+  .close-eta {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 12.5px;
+    color: var(--accent);
+    padding: 3px 10px;
+    background: var(--bg);
+    border-radius: 4px;
+  }
+
+  /* ───── Confidence bar ───── */
+  .confidence-meter {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .confidence-bar {
+    width: 60px; height: 4px;
+    background: var(--bg-elev);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .confidence-fill { height: 100%; background: var(--ok); }
+
+  /* ───── Timeline ───── */
+  .timeline {
+    display: grid;
+    gap: 8px;
+  }
+  .gantt {
+    display: grid;
+    grid-template-columns: 200px 1fr 80px;
+    gap: 16px;
+    align-items: center;
+    padding: 10px 0;
+  }
+  .gantt-label { color: var(--text); font-size: 13.5px; }
+  .gantt-track {
+    height: 18px;
+    background: var(--bg-elev);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .gantt-bar {
+    position: absolute;
+    height: 100%;
+    background: linear-gradient(90deg, var(--critical), var(--high));
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    color: white;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .gantt-weeks {
+    color: var(--text-dim);
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 12px;
+    text-align: right;
+  }
+  .gantt-axis {
+    display: grid;
+    grid-template-columns: 200px 1fr 80px;
+    gap: 16px;
+    color: var(--text-faint);
+    font-size: 11px;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+    margin-top: 4px;
+  }
+  .gantt-axis-marks {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+  }
+  .gantt-axis-marks div { text-align: left; }
+  .gantt-axis-marks div:last-child { text-align: right; }
+
+  /* ───── Action ───── */
+  .action-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .action-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .action-role {
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .action-task { color: var(--text-strong); font-size: 14px; }
+
+  /* ───── Footer ───── */
+  footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-faint);
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  footer a { color: var(--text-dim); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+
+  @media (max-width: 720px) {
+    .container { padding: 24px 16px; }
+    .verdict { grid-template-columns: 1fr; padding: 24px; }
+    .verdict-status { font-size: 40px; }
+    .blocker-head { grid-template-columns: 32px 1fr; }
+    .blocker-toggle { grid-column: 2; }
+    .blocker-body { padding-left: 24px; }
+    .row { grid-template-columns: 1fr; gap: 6px; }
+    .action-grid { grid-template-columns: 1fr; }
+    .gantt, .gantt-axis { grid-template-columns: 120px 1fr 60px; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ═══════════ VERDICT ═══════════ -->
+  <!-- Set :root --verdict per VERDICT RULES. Status text per mode. -->
+  <header class="verdict">
+    <div class="verdict-status">{{VERDICT_STATUS}}</div>
+    <div>
+      <h1>{{DOC_TITLE}} · Red Team Review</h1>
+      <p class="verdict-tagline">{{VERDICT_TAGLINE}}</p>
+      <div class="verdict-meta">
+        <span>{{LABEL_DATE}} <span class="mono">{{DATE}}</span></span>
+        <span>{{LABEL_MODE}} <span class="mono">{{MODE}}</span></span>
+        <span>{{LABEL_TOTAL}} <span class="mono">{{TOTAL_FINDINGS}}</span></span>
+        <span>Critical <span class="mono" style="color:var(--critical)">{{N_CRIT}}</span></span>
+        <span>High <span class="mono" style="color:var(--high)">{{N_HIGH}}</span></span>
+        <span>Med/Low <span class="mono" style="color:var(--medium)">{{N_MEDLOW}}</span></span>
+        <span>{{LABEL_PERSPECTIVES}} <span class="mono">{{PERSPECTIVES}}</span></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════════ RISK MATRIX ═══════════ -->
+  <!-- 9 cells. Place each finding dot by Likelihood (column) × Impact (row).
+       Empty cells stay empty. Cell tone class per DATA CONTRACT. -->
+  <section>
+    <div class="section-head">
+      <h2>{{LABEL_RISK_MATRIX}}</h2>
+      <span class="section-sub">{{LABEL_MATRIX_HINT}}</span>
+    </div>
+    <div class="matrix-wrap">
+      <div class="matrix-y-label">{{LABEL_IMPACT}} →</div>
+      <div class="matrix-main">
+        <!-- Row 1: Impact HIGH  →  cells: (L·H) (M·H) (H·H) -->
+        <div class="matrix-row">
+          <div class="matrix-cell {{TONE_LH}}"><span class="matrix-cell-label">LOW · HIGH</span>{{DOTS_LH}}</div>
+          <div class="matrix-cell {{TONE_MH}}"><span class="matrix-cell-label">MED · HIGH</span>{{DOTS_MH}}</div>
+          <div class="matrix-cell {{TONE_HH}}"><span class="matrix-cell-label">HIGH · HIGH</span>{{DOTS_HH}}</div>
+        </div>
+        <!-- Row 2: Impact MED -->
+        <div class="matrix-row">
+          <div class="matrix-cell {{TONE_LM}}"><span class="matrix-cell-label">LOW · MED</span>{{DOTS_LM}}</div>
+          <div class="matrix-cell {{TONE_MM}}"><span class="matrix-cell-label">MED · MED</span>{{DOTS_MM}}</div>
+          <div class="matrix-cell {{TONE_HM}}"><span class="matrix-cell-label">HIGH · MED</span>{{DOTS_HM}}</div>
+        </div>
+        <!-- Row 3: Impact LOW -->
+        <div class="matrix-row">
+          <div class="matrix-cell {{TONE_LL}}"><span class="matrix-cell-label">LOW · LOW</span>{{DOTS_LL}}</div>
+          <div class="matrix-cell {{TONE_ML}}"><span class="matrix-cell-label">MED · LOW</span>{{DOTS_ML}}</div>
+          <div class="matrix-cell {{TONE_HL}}"><span class="matrix-cell-label">HIGH · LOW</span>{{DOTS_HL}}</div>
+        </div>
+        <div class="matrix-x-labels">
+          <div>{{LABEL_LIKELIHOOD}} LOW</div>
+          <div>{{LABEL_LIKELIHOOD}} MED</div>
+          <div>{{LABEL_LIKELIHOOD}} HIGH</div>
+        </div>
+      </div>
+    </div>
+    <!-- Example dot: <span class="dot crit" title="finding headline">C1</span> -->
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--critical)"></span>Critical</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--high)"></span>High</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--medium)"></span>Medium</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--low)"></span>Low</div>
+    </div>
+  </section>
+
+  <!-- ═══════════ BLOCKER CARDS ═══════════ -->
+  <!-- One <details> per Critical AND High finding. First card open, rest closed.
+       Repeat the block below per finding. .blocker.crit or .blocker.high.
+       perspectives: 4 dots; add .active to the ones that raised this finding,
+       in fixed order Logic·Tech·UX·Biz. -->
+  <section>
+    <div class="section-head">
+      <h2>{{LABEL_BLOCKERS}}</h2>
+      <span class="section-sub">{{LABEL_BLOCKERS_HINT}}</span>
+    </div>
+
+    {{BLOCKER_CARDS}}
+    <!-- TEMPLATE FOR ONE CARD — copy per finding:
+    <details class="blocker crit" open>
+      <summary class="blocker-head">
+        <div class="blocker-num">C1</div>
+        <div>
+          <div class="blocker-title">{{headline}}</div>
+          <div class="blocker-tag-row">
+            <span class="tag crit">CRITICAL</span>
+            <span class="tag">{{raised by N perspectives}}</span>
+            <span class="tag">L:{{likelihood}} · I:{{impact}}</span>
+            <span class="confidence-meter">{{LABEL_CONFIDENCE}}
+              <span class="confidence-bar"><span class="confidence-fill" style="width:{{CONF_PCT}}%"></span></span>
+              <span class="mono" style="color:var(--ok)">{{CONF_PCT}}%</span>
+            </span>
+          </div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">{{LABEL_SCENARIO}}</div><div class="row-content">
+          <div class="scenario">
+            <div class="scenario-step cur">{{step}}</div>
+            <div class="scenario-step cur">{{step}}</div>
+            <div class="scenario-step bad">{{bad outcome}}</div>
+          </div>
+        </div></div>
+        <div class="row"><div class="row-label">{{LABEL_LOCATION}}</div><div class="row-content">{{location + quote}}</div></div>
+        <div class="row"><div class="row-label">{{LABEL_EVIDENCE}}</div><div class="row-content">
+          <div class="citation">{{claim}}<span class="src">{{source}}</span></div>
+          <div class="citation">{{claim}}<span class="src">{{source}}</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">{{LABEL_FALSIFY}}</div><div class="row-content">
+          <div class="falsify"><strong>{{LABEL_FALSIFY_LEAD}}</strong> {{condition}}</div>
+        </div></div>
+        <div class="row"><div class="row-label">{{LABEL_CLOSING}}</div><div class="row-content">
+          <div class="close-method"><div class="close-who"><strong>{{who}}</strong> · {{what}}</div><div class="close-eta">{{eta}}</div></div>
+        </div></div>
+      </div>
+    </details>
+    -->
+  </section>
+
+  <!-- ═══════════ TIMELINE ═══════════ -->
+  <section>
+    <div class="section-head">
+      <h2>{{LABEL_TIMELINE}}</h2>
+      <span class="section-sub">{{LABEL_TIMELINE_HINT}}</span>
+    </div>
+    <div class="timeline">
+      {{GANTT_ROWS}}
+      <!-- per blocker: <div class="gantt"><div class="gantt-label">{{id label}}</div>
+           <div class="gantt-track"><div class="gantt-bar" style="left:0; width:{{pct}}%">{{owner}}</div></div>
+           <div class="gantt-weeks">{{Nw}}</div></div> -->
+    </div>
+  </section>
+
+  <!-- ═══════════ NEXT ACTIONS ═══════════ -->
+  <section>
+    <div class="section-head">
+      <h2>{{LABEL_ACTIONS}}</h2>
+      <span class="section-sub">{{LABEL_ACTIONS_HINT}}</span>
+    </div>
+    <div class="action-grid">
+      {{ACTION_CARDS}}
+      <!-- per role: <div class="action-card"><div class="action-role">{{role}}</div>
+           <div class="action-task">{{task}}</div></div> -->
+    </div>
+  </section>
+
+  <footer>
+    <div>Red Team Review · hds-redteam · Logic · Technical · UX · Business</div>
+    <div>Source: <span class="mono">{{SOURCE_PATH}}</span></div>
+  </footer>
+
+</div>
+</body>
+</html>
