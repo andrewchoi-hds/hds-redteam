@@ -44,6 +44,30 @@ Then in Claude Code:
 /plugin install hds-redteam
 ```
 
+## Updating
+
+Installed plugins are **cached** — a new release on GitHub does not update your
+local copy automatically. After a new version ships, refresh the marketplace
+and reinstall:
+
+```
+/plugin marketplace update hds-redteam-marketplace
+/plugin install hds-redteam@hds-redteam-marketplace
+```
+
+(For the official community marketplace, use `@claude-community` instead.)
+
+To confirm which version is active, check `version` in the plugin's
+`.claude-plugin/plugin.json`, or run `/plugin` and inspect the installed entry.
+If `/redteam` still references old behavior after updating, fully remove and
+re-add the marketplace:
+
+```
+/plugin marketplace remove hds-redteam-marketplace
+/plugin marketplace add andrewchoi-hds/hds-redteam
+/plugin install hds-redteam@hds-redteam-marketplace
+```
+
 ## Usage
 
 ```
