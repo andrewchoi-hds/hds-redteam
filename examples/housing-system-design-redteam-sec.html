@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Red Team Review · Housing System Design (Security)</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0a; --bg-elev: #141414; --bg-card: #1a1a1a; --border: #262626; --border-strong: #3f3f3f;
+    --text: #e5e5e5; --text-dim: #a3a3a3; --text-faint: #737373; --text-strong: #fafafa;
+    --critical: #ef4444; --critical-bg: rgba(239,68,68,0.08); --high: #f97316; --high-bg: rgba(249,115,22,0.08);
+    --medium: #eab308; --medium-bg: rgba(234,179,8,0.08); --low: #71717a;
+    --accent: #3b82f6; --accent-bg: rgba(59,130,246,0.08); --ok: #22c55e; --verdict: var(--critical);
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Pretendard', 'Segoe UI', system-ui, sans-serif; font-size: 15px; line-height: 1.6; letter-spacing: -0.01em; font-feature-settings: "cv11", "ss01"; }
+  .container { max-width: 1180px; margin: 0 auto; padding: 56px 32px 96px; }
+  .mono { font-family: 'SF Mono', 'JetBrains Mono', Monaco, 'Cascadia Code', monospace; font-size: 0.85em; letter-spacing: 0; }
+  .verdict { display: grid; grid-template-columns: auto 1fr; gap: 32px; align-items: center; padding: 36px 40px; background: linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.02)); border: 1px solid var(--verdict); border-radius: 12px; margin-bottom: 48px; }
+  .verdict-status { font-size: 48px; font-weight: 800; color: var(--verdict); letter-spacing: -0.04em; line-height: 1; white-space: nowrap; }
+  .verdict h1 { font-size: 24px; font-weight: 700; color: var(--text-strong); margin-bottom: 6px; letter-spacing: -0.02em; }
+  .verdict-tagline { color: var(--text-dim); font-size: 15px; margin-bottom: 14px; }
+  .verdict-meta { display: flex; flex-wrap: wrap; gap: 14px 24px; font-size: 12.5px; color: var(--text-faint); }
+  .verdict-meta span::before { content: "·"; margin-right: 8px; color: var(--border-strong); }
+  .verdict-meta span:first-child::before { content: ""; margin-right: 0; }
+  section { margin-bottom: 56px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 14px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+  h2 { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-strong); }
+  .section-sub { color: var(--text-faint); font-size: 12.5px; }
+  .matrix-wrap { display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: stretch; }
+  .matrix-y-label { display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl; transform: rotate(180deg); color: var(--text-faint); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; }
+  .matrix-main { display: grid; grid-template-rows: repeat(3, 1fr) auto; gap: 4px; }
+  .matrix-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .matrix-x-labels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 8px; }
+  .matrix-x-labels div { text-align: center; color: var(--text-faint); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; }
+  .matrix-cell { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; min-height: 120px; padding: 12px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; position: relative; }
+  .matrix-cell.danger { background: var(--critical-bg); border-color: rgba(239,68,68,0.3); }
+  .matrix-cell.warn { background: var(--high-bg); border-color: rgba(249,115,22,0.2); }
+  .matrix-cell.caution { background: var(--medium-bg); border-color: rgba(234,179,8,0.18); }
+  .matrix-cell.calm { background: var(--bg-elev); }
+  .matrix-cell-label { position: absolute; top: 8px; right: 10px; font-size: 10px; color: var(--text-faint); letter-spacing: 0.1em; text-transform: uppercase; pointer-events: none; }
+  .dot { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; color: white; cursor: help; transition: transform 0.15s; }
+  .dot:hover { transform: scale(1.15); }
+  .dot.crit { background: var(--critical); } .dot.high { background: var(--high); } .dot.med { background: var(--medium); color: #1a1a1a; } .dot.low { background: var(--low); }
+  .legend { display: flex; gap: 18px; margin-top: 16px; font-size: 12px; color: var(--text-dim); flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
+  .blocker { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; overflow: hidden; transition: border-color 0.15s; }
+  .blocker.crit { border-left: 3px solid var(--critical); } .blocker.high { border-left: 3px solid var(--high); }
+  .blocker:hover { border-color: var(--border-strong); }
+  .blocker-head { display: grid; grid-template-columns: 48px 1fr auto; gap: 18px; align-items: center; padding: 20px 24px; cursor: pointer; user-select: none; }
+  .blocker-num { font-family: 'SF Mono', Monaco, monospace; font-size: 20px; font-weight: 700; color: var(--critical); line-height: 1; }
+  .blocker.high .blocker-num { color: var(--high); }
+  .blocker-title { font-size: 16px; font-weight: 600; color: var(--text-strong); margin-bottom: 6px; }
+  .blocker-tag-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .tag { font-family: 'SF Mono', Monaco, monospace; font-size: 10.5px; padding: 3px 8px; border-radius: 4px; background: var(--bg-elev); color: var(--text-dim); border: 1px solid var(--border); letter-spacing: 0.04em; }
+  .tag.crit { color: var(--critical); border-color: rgba(239,68,68,0.3); background: var(--critical-bg); }
+  .tag.high { color: var(--high); border-color: rgba(249,115,22,0.3); background: var(--high-bg); }
+  .blocker-toggle { color: var(--text-faint); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .blocker[open] .blocker-toggle::before { content: "접기"; } .blocker:not([open]) .blocker-toggle::before { content: "펼치기"; }
+  .blocker-body { padding: 24px 24px 28px 90px; border-top: 1px solid var(--border); }
+  .row { display: grid; grid-template-columns: 96px 1fr; gap: 24px; padding: 14px 0; border-bottom: 1px dashed var(--border); }
+  .row:last-child { border-bottom: none; }
+  .row-label { color: var(--text-faint); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; padding-top: 2px; }
+  .row-content { color: var(--text); }
+  .row-content strong { color: var(--text-strong); }
+  .row-content .citation { display: block; margin-top: 6px; padding-left: 12px; border-left: 2px solid var(--accent); color: var(--text-dim); font-size: 13.5px; }
+  .row-content .citation .src { font-family: 'SF Mono', Monaco, monospace; font-size: 11px; color: var(--text-faint); display: block; margin-top: 2px; }
+  .scenario { background: var(--bg-elev); border-radius: 8px; padding: 14px 16px; border: 1px solid var(--border); color: var(--text); font-size: 14px; }
+  .scenario-step { display: flex; gap: 12px; padding: 4px 0; }
+  .scenario-step::before { content: "→"; color: var(--text-faint); flex-shrink: 0; }
+  .scenario-step.bad::before { content: "✖"; color: var(--critical); } .scenario-step.cur::before { content: "▸"; color: var(--accent); }
+  .falsify { background: rgba(34,197,94,0.04); border: 1px dashed rgba(34,197,94,0.3); border-radius: 6px; padding: 10px 14px; color: var(--text-dim); font-size: 13.5px; }
+  .falsify strong { color: var(--ok); }
+  .close-method { display: flex; justify-content: space-between; align-items: center; gap: 16px; background: var(--accent-bg); border: 1px solid rgba(59,130,246,0.2); border-radius: 6px; padding: 10px 16px; }
+  .close-who { color: var(--text-strong); font-weight: 500; font-size: 14px; }
+  .close-eta { font-family: 'SF Mono', Monaco, monospace; font-size: 12.5px; color: var(--accent); padding: 3px 10px; background: var(--bg); border-radius: 4px; white-space: nowrap; }
+  .confidence-meter { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-faint); letter-spacing: 0.1em; text-transform: uppercase; }
+  .confidence-bar { width: 60px; height: 4px; background: var(--bg-elev); border-radius: 2px; overflow: hidden; }
+  .confidence-fill { height: 100%; background: var(--ok); }
+  .timeline { display: grid; gap: 8px; }
+  .gantt { display: grid; grid-template-columns: 300px 1fr 64px; gap: 16px; align-items: center; padding: 9px 0; }
+  .gantt-label { color: var(--text); font-size: 13px; }
+  .gantt-track { height: 18px; background: var(--bg-elev); border-radius: 4px; position: relative; overflow: hidden; }
+  .gantt-bar { position: absolute; height: 100%; background: linear-gradient(90deg, var(--critical), var(--high)); border-radius: 4px; display: flex; align-items: center; padding: 0 8px; color: white; font-size: 11px; font-weight: 500; white-space: nowrap; }
+  .gantt-weeks { color: var(--text-dim); font-family: 'SF Mono', Monaco, monospace; font-size: 12px; text-align: right; }
+  .action-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .action-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; }
+  .action-role { color: var(--text-faint); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 8px; }
+  .action-task { color: var(--text-strong); font-size: 14px; }
+  footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-faint); font-size: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  footer .mono { color: var(--text-dim); }
+  details > summary { list-style: none; } details > summary::-webkit-details-marker { display: none; }
+  @media (max-width: 720px) {
+    .container { padding: 24px 16px; }
+    .verdict { grid-template-columns: 1fr; padding: 24px; } .verdict-status { font-size: 34px; }
+    .blocker-head { grid-template-columns: 40px 1fr; } .blocker-toggle { grid-column: 2; } .blocker-body { padding-left: 24px; }
+    .row { grid-template-columns: 1fr; gap: 6px; } .action-grid { grid-template-columns: 1fr; }
+    .gantt { grid-template-columns: 140px 1fr 52px; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="verdict">
+    <div class="verdict-status">DO NOT DEPLOY</div>
+    <div>
+      <h1>Housing 시스템 설계서 · 보안 레드팀 (-sec)</h1>
+      <p class="verdict-tagline">7개 배포 차단 취약점. 시크릿·SQLi·웹훅·업로드·여권번호가 4관점에서 중복 지적됐고, 단일 XSS 또는 시크릿 유출 한 건이 전 시스템 장악 + 대량 여권번호 유출로 연쇄된다.</p>
+      <div class="verdict-meta">
+        <span>분석 일자 <span class="mono">2026-05-30</span></span>
+        <span>모드 <span class="mono">-sec</span></span>
+        <span>총 발견 <span class="mono">18</span></span>
+        <span>Critical <span class="mono" style="color:var(--critical)">7</span></span>
+        <span>High <span class="mono" style="color:var(--high)">5</span></span>
+        <span>Med/Low <span class="mono" style="color:var(--medium)">6</span></span>
+        <span>관점 <span class="mono">논리 · 기술 · 운영/감사 · 규제</span></span>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <div class="section-head">
+      <h2>위험 매트릭스 · 발생가능성 × 영향도</h2>
+      <span class="section-sub">번호는 본문 발견 ID — 호버하면 제목</span>
+    </div>
+    <div class="matrix-wrap">
+      <div class="matrix-y-label">영향도 →</div>
+      <div class="matrix-main">
+        <div class="matrix-row">
+          <div class="matrix-cell caution"><span class="matrix-cell-label">LOW · HIGH</span></div>
+          <div class="matrix-cell warn"><span class="matrix-cell-label">MED · HIGH</span>
+            <span class="dot crit" title="C5 파일 업로드 — 확장자 검사만 + 원본 파일명 + 웹루트 저장 → XSS/경로이탈/RCE">C5</span>
+            <span class="dot high" title="H2 어드민 환불 금액 자유 입력 — 상한·이중승인·감사로그 부재">H2</span>
+            <span class="dot high" title="H4 빌링키 평문 저장 — 유출 시 반복 과금 사기(PCI-DSS)">H4</span>
+          </div>
+          <div class="matrix-cell danger"><span class="matrix-cell-label">HIGH · HIGH</span>
+            <span class="dot crit" title="C1 .env/JWT_SECRET를 git에 보관 + HS256 대칭키 → 어드민 토큰 위조">C1</span>
+            <span class="dot crit" title="C2 sort→ORDER BY 직접 매핑 = SQL 인젝션 → 여권번호 덤프">C2</span>
+            <span class="dot crit" title="C3 클라이언트가 amount 전송 + 콜백 PG 재검증 없음 → 가격 조작·위조 결제">C3</span>
+            <span class="dot crit" title="C4 핸디즈 웹훅 서명 검증 없음 → 계약 상태 임의 위조">C4</span>
+            <span class="dot crit" title="C6 여권번호 평문 저장 + 전체 요청 body 로깅 → PIPA 위반·대량 PII 노출">C6</span>
+            <span class="dot crit" title="C7 어드민 인가 미정의 — 동일 로그인/JWT, role 컬럼만, MFA 없음">C7</span>
+            <span class="dot high" title="H1 JWT localStorage + 30일 만료 + 무효화 없음 → XSS 탈취·봉쇄 불가">H1</span>
+            <span class="dot high" title="H3 보안 모니터링·사고대응 전무 → 침해 탐지 불가, 72시간 신고 불가능">H3</span>
+          </div>
+        </div>
+        <div class="matrix-row">
+          <div class="matrix-cell calm"><span class="matrix-cell-label">LOW · MED</span>
+            <span class="dot med" title="M3 CloudWatch 로그 접근통제·보존기간 미정의">M3</span>
+          </div>
+          <div class="matrix-cell caution"><span class="matrix-cell-label">MED · MED</span>
+            <span class="dot high" title="H5 로그인 레이트리밋·계정 잠금 없음 → 크리덴셜 스터핑">H5</span>
+            <span class="dot med" title="M1 LB→EC2 평문 HTTP — 내부망 스니핑">M1</span>
+            <span class="dot med" title="M2 여권번호 등 데이터 보존·파기 정책 부재(개인정보보호법 제21조)">M2</span>
+            <span class="dot med" title="M4 폴링 vs 웹훅 이중 진실원천 — 충돌 해소·멱등성 규칙 없음">M4</span>
+            <span class="dot low" title="L2 위협 모델·보안 수용기준 부재 — 배포 승인 판정 불가">L2</span>
+          </div>
+          <div class="matrix-cell warn"><span class="matrix-cell-label">HIGH · MED</span></div>
+        </div>
+        <div class="matrix-row">
+          <div class="matrix-cell calm"><span class="matrix-cell-label">LOW · LOW</span></div>
+          <div class="matrix-cell calm"><span class="matrix-cell-label">MED · LOW</span>
+            <span class="dot low" title="L1 페이지네이션 limit 상한 없음 → 대량 스크래핑/DoS">L1</span>
+          </div>
+          <div class="matrix-cell caution"><span class="matrix-cell-label">HIGH · LOW</span></div>
+        </div>
+        <div class="matrix-x-labels">
+          <div>발생가능성 LOW</div><div>발생가능성 MED</div><div>발생가능성 HIGH</div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--critical)"></span>Critical · 배포 차단</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--high)"></span>High · 배포 전 권장</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--medium)"></span>Medium</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--low)"></span>Low</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>배포 차단 취약점 (Critical) · 7</h2>
+      <span class="section-sub">시나리오 · 외부 근거(OWASP/CWE/법령) · 반증 조건 · 닫는 법</span>
+    </div>
+
+    <details class="blocker crit" open>
+      <summary class="blocker-head">
+        <div class="blocker-num">C1</div>
+        <div>
+          <div class="blocker-title">.env / JWT_SECRET를 git 리포지토리에 보관 + HS256 대칭키 → 어드민 토큰 위조</div>
+          <div class="blocker-tag-row"><span class="tag crit">CRITICAL</span><span class="tag">논리·기술·운영 3관점</span><span class="tag">L:HIGH · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:90%"></span></span><span class="mono" style="color:var(--ok)">90%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">계약 종료된 외주 개발자가 퇴사 전 리포지토리를 로컬에 clone (GitHub 권한만 회수됨)</div>
+          <div class="scenario-step cur">private 브랜치 .env에서 JWT_SECRET 확보 — HS256은 대칭키라 이 키로 서명 가능</div>
+          <div class="scenario-step cur">{role:"admin"} 클레임 토큰을 로컬에서 직접 서명 → /admin/refunds 호출</div>
+          <div class="scenario-step bad">결제 없는 주문에 환불 반복 실행, CPU/메모리 알람뿐이라 3주간 미탐지</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§2 "시크릿은 환경변수 JWT_SECRET" ↔ §7 "`.env`를 리포지토리 private 브랜치에 보관, 배포 시 복사" — 두 문장이 직접 충돌</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">시크릿은 전용 관리 솔루션에 두고 소스/저장소에 키 재료 노출 금지.<span class="src">OWASP ASVS 4.0.3 V6.4 · CWE-798 · CWE-540</span></div>
+          <div class="citation">Uber 2016 — private GitHub 리포의 AWS 자격증명으로 5,700만 건 유출, FTC 합의명령.<span class="src">FTC In the Matter of Uber Technologies</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> .env에 JWT_SECRET이 없고 Secrets Manager/SSM에서만 주입되거나, JWT를 RS256/EdDSA 비대칭 서명으로 전환(서버는 공개키만)하면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>백엔드 리드 + DevOps</strong> · Secrets Manager 이전 + git 히스토리 제거(BFG/gitleaks) + 즉시 로테이션</div><div class="close-eta">~2일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">C2</div>
+        <div>
+          <div class="blocker-title">sort 파라미터를 ORDER BY에 직접 매핑 = SQL 인젝션 → 여권번호 대량 탈취</div>
+          <div class="blocker-tag-row"><span class="tag crit">CRITICAL</span><span class="tag">논리·기술·운영 3관점</span><span class="tag">L:HIGH · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:90%"></span></span><span class="mono" style="color:var(--ok)">90%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">공격자가 인증 불필요 `GET /api/listings?sort=...`에 `(CASE WHEN (SELECT 1)=1 THEN price ELSE name END)` 주입</div>
+          <div class="scenario-step cur">응답 정렬 변화로 인젝션 지점 확인 → 시간 기반 블라인드(pg_sleep)로 sqlmap 자동화</div>
+          <div class="scenario-step cur">guests 테이블 여권번호를 한 바이트씩 추출, IP 로테이션으로 6시간 만에 1,100건</div>
+          <div class="scenario-step bad">여권번호 대량 유출 → PIPA 신고 대상 사고. CPU 부하 미미해 알람 없음</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§6 "sort 파라미터는 SQL ORDER BY 절에 직접 매핑해 유연한 정렬 지원" — "직접 매핑" 자체가 화이트리스트 부재를 자인</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">ORDER BY는 바인드 파라미터로 방어 불가 → 허용 컬럼/방향 화이트리스트가 유일한 안전 패턴.<span class="src">OWASP SQL Injection Prevention Cheat Sheet · CWE-89</span></div>
+          <div class="citation">Injection은 OWASP Top 10 2021 A03.<span class="src">OWASP Top 10 2021 A03</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> sort ∈ {price_asc, price_desc, distance, created_desc} 열거형으로 서버 매핑하고 미허용 값은 400으로 거절하면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>백엔드 개발자</strong> · 정렬 키 enum 화이트리스트 매핑</div><div class="close-eta">~0.5일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">C3</div>
+        <div>
+          <div class="blocker-title">클라이언트가 amount 전송 + 결제 콜백 PG 재검증·서명 없음 → 가격 조작·위조 결제</div>
+          <div class="blocker-tag-row"><span class="tag crit">CRITICAL</span><span class="tag">논리·기술·운영 3관점</span><span class="tag">L:HIGH · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:88%"></span></span><span class="mono" style="color:var(--ok)">88%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">공격자가 90만원 결제 요청을 프록시로 가로채 amount를 1,000으로 변조</div>
+          <div class="scenario-step cur">서버가 listingId로 가격 재계산 없이 amount 그대로 PG 결제창에 전달 → 1,000원 결제</div>
+          <div class="scenario-step cur">또는 결제창 닫고 `/api/payment/callback`에 위조 orderId로 성공 콜백 직접 POST</div>
+          <div class="scenario-step bad">서버가 PG 승인/금액 재조회 없이 PAID 처리 → 무·저가 계약 확정, 정산 대조 때야 발각</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§3 "클라이언트가 amount, listingId, period를 API로 전송" + "콜백 처리: orderId로 주문 조회 후 상태를 PAID로 변경" (금액 재계산·PG 재조회·서명 없음)</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">클라이언트가 보낸 가격을 신뢰하지 말고 서버가 원장에서 재계산해야 함.<span class="src">OWASP Top 10 2021 A04 Insecure Design · CWE-602</span></div>
+          <div class="citation">콜백은 서버→PG 승인/조회 API로 금액·주문번호 재검증 필수.<span class="src">국내 PG 표준 연동 가이드(토스/나이스) · CWE-345</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 서버가 listingId+period로 금액을 재계산해 불일치 시 거부하고, 콜백에서 PG 승인 재조회 + 서명 검증 + orderId 멱등 처리를 하면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>결제 백엔드</strong> · 서버측 금액 산출 + PG 재조회 + 멱등 처리</div><div class="close-eta">~1일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">C4</div>
+        <div>
+          <div class="blocker-title">핸디즈 웹훅 서명 검증 없음 → 계약 상태 임의 위조</div>
+          <div class="blocker-tag-row"><span class="tag crit">CRITICAL</span><span class="tag">논리·기술·운영 3관점</span><span class="tag">L:HIGH · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:88%"></span></span><span class="mono" style="color:var(--ok)">88%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">공격자가 공개 URL `/api/webhook/handys`에 `{"eventType":"CONTRACT_CONFIRMED","contractId":123}` POST</div>
+          <div class="scenario-step cur">서명·발신자 검증 없어 서버가 정상 이벤트로 처리, 계약 123을 확정으로 변경</div>
+          <div class="scenario-step cur">반대로 CONTRACT_CANCELLED 위조로 확정 계약 대량 취소, 리플레이로 상태 플리핑</div>
+          <div class="scenario-step bad">핸디즈 원장과 우리 DB 불일치 → 입주 당일 현장 분쟁, 정산 붕괴</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§4 "핸디즈가 웹훅 `/api/webhook/handys`로 POST … eventType에 따라 분기, 계약 상태 업데이트" (HMAC·타임스탬프·IP·멱등성 전무)</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">서명 없이 신뢰하는 외부 이벤트(웹훅)는 대표적 무결성 실패.<span class="src">OWASP Top 10 2021 A08 · CWE-345 · CWE-306</span></div>
+          <div class="citation">표준 웹훅(Stripe/GitHub)은 HMAC 서명 + 타임스탬프 검증을 요구.<span class="src">Stripe Webhooks Verify Docs</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 공유 시크릿 HMAC 서명 검증 + 타임스탬프 허용범위 + 이벤트 ID 멱등 + IP 허용목록이 명시되면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>연동 백엔드</strong> · 웹훅 서명 검증 미들웨어 + 멱등 테이블</div><div class="close-eta">~1일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">C5</div>
+        <div>
+          <div class="blocker-title">파일 업로드 — 확장자 검사만 + 원본 파일명 유지 + 웹루트(/public/uploads) 저장 → XSS·경로이탈·RCE</div>
+          <div class="blocker-tag-row"><span class="tag crit">CRITICAL</span><span class="tag">논리·기술·운영 3관점</span><span class="tag">L:MED · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:85%"></span></span><span class="mono" style="color:var(--ok)">85%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">어드민 세션 확보(C7 경로) 후 &lt;script&gt; 포함 evil.svg 업로드, 확장자 검사 통과</div>
+          <div class="scenario-step cur">`/public/uploads/evil.svg`가 동일 출처에서 정적 서빙됨</div>
+          <div class="scenario-step cur">매물 이미지 링크 접근 시 스크립트 실행 → localStorage의 JWT 탈취(H1 연계)</div>
+          <div class="scenario-step bad">원본 파일명 `../` 시 경로 이탈·기존 파일 덮어쓰기, 실행 경로면 RCE → 서버 장악</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§8 "업로드 파일은 확장자 확인 후 `/public/uploads/`에 저장, 원본 파일명 유지" — 세 안티패턴 동시</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">랜덤 파일명, 웹루트 밖 저장, 매직바이트/재인코딩 검증 권고.<span class="src">OWASP File Upload Cheat Sheet · CWE-434 · CWE-22</span></div>
+          <div class="citation">ASVS V12.4/V12.5 — 업로드 파일 실행 금지·제한 권한 저장.<span class="src">OWASP ASVS 4.0.3</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> UUID 파일명 재생성 + 매직바이트 검증/이미지 재인코딩 + S3 등 웹루트 밖 저장 + Content-Disposition 서빙이면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>백엔드 개발자</strong> · S3 프리사인 + 재인코딩 + UUID 파일명</div><div class="close-eta">~1-2일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">C6</div>
+        <div>
+          <div class="blocker-title">여권번호 평문 저장 + 전체 요청 body 로깅 → 개인정보보호법 위반·대량 PII 노출</div>
+          <div class="blocker-tag-row"><span class="tag crit">CRITICAL</span><span class="tag">논리·기술·운영·규제 4관점</span><span class="tag">L:HIGH · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:85%"></span></span><span class="mono" style="color:var(--ok)">85%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">§2는 비밀번호를 bcrypt로 보호하지만 §5는 "전체 요청 body를 CloudWatch에 기록" — 로그인·게스트 등록 body가 평문 적재</div>
+          <div class="scenario-step cur">대행사에 로그 열람 IAM 부여, `filter @message like /passport/`로 게스트 2,300명 여권번호 CSV 다운로드</div>
+          <div class="scenario-step cur">담당자 노트북 인포스틸러 감염 → 다크웹 게시</div>
+          <div class="scenario-step bad">게스트 삭제요청해도 로그 사본 잔존 → PIPA 제24·29조 위반, 과징금·신고</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§5 "여권번호를 guests 테이블에 저장"(컬럼 암호화 언급 없음) + "전체 요청 body를 CloudWatch에 JSON으로 기록(디버깅용)"</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">여권번호는 고유식별정보 — 저장 시 암호화 의무.<span class="src">개인정보보호법 제24조 · 안전성 확보조치 기준 고시 제7조 · CWE-311</span></div>
+          <div class="citation">자격증명·민감 PII를 로그에 기록 금지.<span class="src">OWASP ASVS V7.1 · CWE-532 · OWASP Top 10 A09</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 여권번호 컬럼 암호화(KMS) + 로깅 시 민감필드 마스킹 allowlist + 로그 보존기간·접근통제가 §5에 명시되면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>백엔드 + 개인정보보호책임자</strong> · 컬럼 암호화 + 로깅 마스킹 미들웨어</div><div class="close-eta">~3일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">C7</div>
+        <div>
+          <div class="blocker-title">어드민 인가 미정의 — 사용자와 동일 로그인/JWT, role 컬럼만, MFA·네트워크 분리 없음</div>
+          <div class="blocker-tag-row"><span class="tag crit">CRITICAL</span><span class="tag">논리·기술·운영 3관점</span><span class="tag">L:HIGH · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:82%"></span></span><span class="mono" style="color:var(--ok)">82%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">공격자가 유출 크리덴셜로 §2 동일 로그인 폼에 크리덴셜 스터핑(속도 제한 없음)</div>
+          <div class="scenario-step cur">운영팀 계정이 비밀번호 재사용으로 적중, 2FA 없음</div>
+          <div class="scenario-step cur">동일 도메인·동일 토큰이라 관문 없이 `/admin/refunds`·게스트 PII 조회 접근</div>
+          <div class="scenario-step bad">임의 환불 + 여권번호 테이블 전체 유출 → 계정 1개 = 시스템 전체</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§1 "어드민은 같은 API 서버의 `/admin/*`" + §2 "사용자와 같은 로그인 폼, role='admin' 컬럼으로 구분" — 식별만 있고 인가·MFA 규칙 없음</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">Broken Access Control이 OWASP Top 10 2021 1위 — "관리자 페이지 무권한 접근"이 대표 사례.<span class="src">OWASP Top 10 2021 A01 · CWE-269</span></div>
+          <div class="citation">Twitter 2020 — 어드민 툴 MFA·최소권한 부재로 130개 계정 장악(NY DFS 보고서).<span class="src">NY DFS Investigation Report 2020-10</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> /admin/* 서버측 role 검증 미들웨어 + 어드민 전용 MFA + VPN/IP 허용목록 + 로그인 속도 제한이 명시되면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>보안 + 백엔드 리드</strong> · 어드민 MFA + 네트워크 분리 + 권한 미들웨어</div><div class="close-eta">~3일</div></div></div></div>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>배포 전 권장 (High) · 5</h2>
+      <span class="section-sub">Critical과 연쇄되어 피해를 증폭시키는 통제 공백</span>
+    </div>
+
+    <details class="blocker high">
+      <summary class="blocker-head">
+        <div class="blocker-num">H1</div>
+        <div>
+          <div class="blocker-title">JWT localStorage 저장 + 30일 만료 + 무효화 메커니즘 없음</div>
+          <div class="blocker-tag-row"><span class="tag high">HIGH</span><span class="tag">논리·기술·운영 3관점</span><span class="tag">L:HIGH · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:90%"></span></span><span class="mono" style="color:var(--ok)">90%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">C5의 SVG XSS로 localStorage.token 탈취 스크립트 실행</div>
+          <div class="scenario-step cur">stateless JWT라 로그아웃/비밀번호 변경해도 서버측 무효화 없음</div>
+          <div class="scenario-step cur">퇴사자 role을 user로 강등해도 기존 토큰이 최대 30일 유효</div>
+          <div class="scenario-step bad">침해 봉쇄가 구조적으로 불가능 — 전체 SECRET 교체 외 방법 없음</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§2 "JWT 발급(만료 30일), 클라이언트 localStorage에 저장" (httpOnly·폐기·refresh 없음)</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">무상태 JWT는 즉시 폐기 불가 → 짧은 만료 + refresh 회전 + 폐기 목록 권고. localStorage는 XSS에 취약.<span class="src">OWASP ASVS V3.3 · JWT Cheat Sheet · CWE-613 · CWE-522</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> httpOnly+Secure+SameSite 쿠키, 짧은 액세스 토큰(≤15분) + refresh 회전 + token_version/블랙리스트 무효화가 있으면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>백엔드 + 프론트</strong> · 쿠키 기반 인증 전환 + 만료 단축/폐기</div><div class="close-eta">~3-5일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker high">
+      <summary class="blocker-head">
+        <div class="blocker-num">H2</div>
+        <div>
+          <div class="blocker-title">어드민 환불 금액 자유 입력 — 원결제 상한·이중승인·감사로그 부재</div>
+          <div class="blocker-tag-row"><span class="tag high">HIGH</span><span class="tag">논리·기술·운영 3관점</span><span class="tag">L:MED · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:78%"></span></span><span class="mono" style="color:var(--medium)">78%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">탈취된(C7) 또는 내부자 어드민이 10만원 결제 건에 100만원 환불 입력</div>
+          <div class="scenario-step cur">원결제-환불 대사 로직 없어 PG 환불 API 그대로 호출</div>
+          <div class="scenario-step bad">차액 유출 + 감사로그 부재로 내부 부정과 외부 침해 구분 불가</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§3 "환불: 어드민 화면에서 금액 입력 후 PG 환불 API 호출" (상한 검증·이중승인·감사로그 없음)</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">금전 거래는 감사로그·직무분리 필수; 비즈니스 로직 한도 검증 요구.<span class="src">OWASP ASVS V11.1 · PCI DSS Req 10 · SOC 2 CC5.2 · CWE-840</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 환불액 ≤ (원결제 − 기환불) 서버 강제 + 일정액 이상 이중승인 + 불변 감사로그가 있으면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>백엔드 + 재무</strong> · 환불 상한 검증 + 감사로그 + 승인 워크플로</div><div class="close-eta">~1-2일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker high">
+      <summary class="blocker-head">
+        <div class="blocker-num">H3</div>
+        <div>
+          <div class="blocker-title">보안 모니터링·감사·사고대응 전무 — 침해 탐지 불가, PIPA 72시간 신고 불가능</div>
+          <div class="blocker-tag-row"><span class="tag high">HIGH</span><span class="tag">기술·운영·규제 3관점</span><span class="tag">L:HIGH · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:88%"></span></span><span class="mono" style="color:var(--ok)">88%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">C2 SQL 인젝션이 3일간 지속, 쿼리가 가벼워 CPU/메모리 알람 미발생</div>
+          <div class="scenario-step cur">로그인 실패·환불 급증·웹훅 위조에 대한 알람이 하나도 없음</div>
+          <div class="scenario-step cur">3주 후 계정 탈취 신고 누적으로 인지, 로그 구조 미비로 침투 시점 특정 실패</div>
+          <div class="scenario-step bad">유출 인지 자체가 불가 → 개인정보보호법 72시간 신고 기한 원천적으로 위반</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§7 "모니터링: EC2 CPU/메모리 CloudWatch 알람"(유일) + 문서 전체에 보안 이벤트 로깅·사고대응 런북 부재</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">인증/접근통제 결정 로깅 + 이상 탐지 알람 요구; IR 라이프사이클의 Detection 단계 필수.<span class="src">OWASP Top 10 A09 · ASVS V7.2 · NIST SP 800-61 · SOC 2 CC7.2-7.4</span></div>
+          <div class="citation">유출 통지·신고 72시간 의무.<span class="src">개인정보보호법 제34조</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 보안 이벤트 목록 + 알람 임계·수신자 + 무변경 로그 보존 + IR 런북(에스컬레이션·72시간 흐름)이 명시되면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>SecOps + SRE</strong> · 보안 알람 3종+ (로그인 실패·환불·웹훅) + IR 런북</div><div class="close-eta">~1-2주</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker high">
+      <summary class="blocker-head">
+        <div class="blocker-num">H4</div>
+        <div>
+          <div class="blocker-title">빌링키 암호화·접근통제 언급 없음 → 유출 시 반복 과금 사기 (PCI-DSS)</div>
+          <div class="blocker-tag-row"><span class="tag high">HIGH</span><span class="tag">기술 1관점</span><span class="tag">L:MED · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:65%"></span></span><span class="mono" style="color:var(--medium)">65%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">C2 SQLi로 billing_keys 테이블 접근</div>
+          <div class="scenario-step cur">빌링키 확보 후 PG 정기결제 API로 반복 청구 시도</div>
+          <div class="scenario-step bad">사용자 카드 무단 청구 → 대량 분쟁·차지백, PG 계약 정지 리스크</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§3 "빌링키는 DB billing_keys 테이블에 저장" (암호화·접근 분리 미언급)</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">결제 자격정보 저장 시 암호화·접근 제한 요구.<span class="src">PCI-DSS Req 3 · CWE-311</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 빌링키를 KMS 암호화·별도 스키마·최소권한으로 저장하고 사용 시 서버측 재인증이 있으면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>백엔드</strong> · 빌링키 암호화 + 접근 분리</div><div class="close-eta">~1-2일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker high">
+      <summary class="blocker-head">
+        <div class="blocker-num">H5</div>
+        <div>
+          <div class="blocker-title">로그인 레이트리밋·계정 잠금 미언급 → 크리덴셜 스터핑/무차별 대입</div>
+          <div class="blocker-tag-row"><span class="tag high">HIGH</span><span class="tag">기술·운영·논리 3관점</span><span class="tag">L:MED · I:MED</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:65%"></span></span><span class="mono" style="color:var(--medium)">65%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">공격자가 유출 크리덴셜 목록으로 `/login` 자동 대입 — 실패 제한 없음</div>
+          <div class="scenario-step cur">bcrypt는 저장 방어일 뿐, 온라인 무차별 대입은 그대로 노출</div>
+          <div class="scenario-step bad">재사용 비밀번호 계정 다수 탈취 → PII·빌링키 접근, H3 부재로 장기 미인지</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§2 "이메일 + 비밀번호 로그인 … bcrypt 해시 저장" (레이트리밋·잠금·캡차 언급 없음)</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">무차별 대입 방어(레이트리밋·잠금) 요구.<span class="src">OWASP Top 10 A07 · CWE-307 · NIST SP 800-63B 5.2.2</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> IP/계정별 레이트리밋 + 실패 임계 잠금 + 캡차 + 이상 로그인 알림이 LB/API 게이트웨이나 앱에 구현되어 있으면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>백엔드</strong> · 레이트리밋 미들웨어 + 실패 카운터</div><div class="close-eta">~1일</div></div></div></div>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>수정 타임라인 · 배포 차단 항목</h2>
+      <span class="section-sub">병렬 처리 가정 — 대부분 코드 수준, 최장 3일</span>
+    </div>
+    <div class="timeline">
+      <div class="gantt"><div class="gantt-label">C2 sort 화이트리스트</div><div class="gantt-track"><div class="gantt-bar" style="left:0; width:17%">백엔드</div></div><div class="gantt-weeks">0.5d</div></div>
+      <div class="gantt"><div class="gantt-label">C3 결제 금액·콜백 검증</div><div class="gantt-track"><div class="gantt-bar" style="left:0; width:33%">결제</div></div><div class="gantt-weeks">1d</div></div>
+      <div class="gantt"><div class="gantt-label">C4 웹훅 서명 검증</div><div class="gantt-track"><div class="gantt-bar" style="left:0; width:33%">연동</div></div><div class="gantt-weeks">1d</div></div>
+      <div class="gantt"><div class="gantt-label">C1 시크릿 이전·로테이션</div><div class="gantt-track"><div class="gantt-bar" style="left:0; width:66%">DevOps</div></div><div class="gantt-weeks">2d</div></div>
+      <div class="gantt"><div class="gantt-label">C5 업로드 재설계</div><div class="gantt-track"><div class="gantt-bar" style="left:0; width:66%">백엔드</div></div><div class="gantt-weeks">2d</div></div>
+      <div class="gantt"><div class="gantt-label">C6 여권 암호화·로그 마스킹</div><div class="gantt-track"><div class="gantt-bar" style="left:0; width:100%">백엔드+DPO</div></div><div class="gantt-weeks">3d</div></div>
+      <div class="gantt"><div class="gantt-label">C7 어드민 MFA·분리</div><div class="gantt-track"><div class="gantt-bar" style="left:0; width:100%">보안+백엔드</div></div><div class="gantt-weeks">3d</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>다음 액션 · 역할별</h2>
+      <span class="section-sub">배포 차단 해소 시작점</span>
+    </div>
+    <div class="action-grid">
+      <div class="action-card"><div class="action-role">보안 책임자 / 의사결정자</div><div class="action-task">배포 홀드. C1·C6·C7(시크릿·PII·어드민)이 컴플라이언스 직결. IR 런북(H3) + 위협 모델·수용기준(L2)을 배포 게이트로 지정.</div></div>
+      <div class="action-card"><div class="action-role">백엔드 / 결제</div><div class="action-task">코드 레벨 즉시 수정 우선: C2 화이트리스트, C3 서버측 금액+콜백 재검증, C4 웹훅 서명. 그다음 C5 업로드·C6 암호화·H1 세션.</div></div>
+      <div class="action-card"><div class="action-role">DevOps · 개인정보보호책임자</div><div class="action-task">C1 Secrets Manager 이전 + git 히스토리 제거 + 로테이션. C6 여권 컬럼 암호화·로그 마스킹·보존기간. M1 내부 TLS.</div></div>
+    </div>
+  </section>
+
+  <footer>
+    <div>Red Team Review · hds-redteam v1.1.0 · 논리 · 기술 · 운영/감사 · 규제 4관점 병렬 비평</div>
+    <div>Source: <span class="mono">housing-system-design.md</span></div>
+  </footer>
+
+</div>
+</body>
+</html>

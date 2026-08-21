@@ -134,7 +134,7 @@ What you'll see in the demo:
   - Falsification conditions ("this finding is dismissed if a legal opinion exists")
   - Closing path with estimated weeks
 
-Demos for `-sec`, `-rfc`, `-biz` modes will be added in V1.1.
+A `-sec` mode demo is at [examples/housing-system-design-redteam-sec.html](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-system-design-redteam-sec.html) (reviewing [housing-system-design.md](examples/housing-system-design.md)). Demos for `-rfc` and `-biz` modes will follow.
 
 ## How it works
 

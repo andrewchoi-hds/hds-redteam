@@ -3,6 +3,13 @@
 All notable changes to hds-redteam are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased
+
+### Added
+- `-sec` mode example: `examples/housing-system-design.md` + its rendered
+  dashboard `examples/housing-system-design-redteam-sec.html` (DO NOT DEPLOY,
+  7 Critical). Generated end-to-end by the installed plugin.
+
 ## [1.1.0] — 2026-05-29
 
 Reliability pass on the synthesis stage. The data contract between agents and
