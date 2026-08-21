@@ -3,7 +3,7 @@
 All notable changes to hds-redteam are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
-## Unreleased
+## [1.2.0] — 2026-05-30
 
 ### Added
 - One rendered demo per domain mode, each generated end-to-end by the installed
@@ -12,6 +12,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   - `-rfc` — `housing-realtime-inventory-rfc` (NEEDS REVISION, 5 Critical)
   - `-biz` — `housing-business-plan` (DO NOT LAUNCH, 5 Critical)
   (`-prd` demo `housing-prd-review.html` shipped in 1.0.0.)
+
+### Changed
+- README: all four mode demos in one table; Models section now names the
+  frontmatter `model:` aliases (`opus`/`sonnet`) instead of pinned version
+  numbers that would age; trimmed stale `-prd` demo figures.
 
 ## [1.1.0] — 2026-05-29
 

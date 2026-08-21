@@ -119,22 +119,7 @@ The verdict label adapts to mode:
 
 ## Example output
 
-See [examples/housing-prd-review.html](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-prd-review.html) for a `-prd` mode review of a sample Housing Marketplace V1 PRD.
-
-What you'll see in the demo:
-
-- **NO-GO verdict** with 5 release-blocking items
-- **3×3 risk matrix** placing all 30+ findings
-- Each blocker card includes:
-  - Step-by-step scenario with hypothetical user names and amounts
-  - Real legal citations (Korean real-estate licensing law article numbers + penalties)
-  - Distributed-systems references (CAP theorem, Saga pattern, 2PC limits)
-  - Industry parallels (Airbnb inventory sync, Toss payment SLAs)
-  - Confidence bars (75%–95%) with one-line reasoning
-  - Falsification conditions ("this finding is dismissed if a legal opinion exists")
-  - Closing path with estimated weeks
-
-One rendered demo per mode (each generated end-to-end by the installed plugin):
+One rendered demo per mode — each generated end-to-end by the installed plugin, reviewing a sample document from the same fictional "Housing" product:
 
 | Mode | Input | Dashboard | Verdict |
 |---|---|---|---|
@@ -142,6 +127,16 @@ One rendered demo per mode (each generated end-to-end by the installed plugin):
 | `-sec` | [housing-system-design.md](examples/housing-system-design.md) | [housing-system-design-redteam-sec.html](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-system-design-redteam-sec.html) | DO NOT DEPLOY |
 | `-rfc` | [housing-realtime-inventory-rfc.md](examples/housing-realtime-inventory-rfc.md) | [housing-realtime-inventory-rfc-redteam-rfc.html](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-realtime-inventory-rfc-redteam-rfc.html) | NEEDS REVISION |
 | `-biz` | [housing-business-plan.md](examples/housing-business-plan.md) | [housing-business-plan-redteam-biz.html](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-business-plan-redteam-biz.html) | DO NOT LAUNCH |
+
+Each blocker card in a dashboard carries:
+
+- A step-by-step **scenario** with hypothetical actors, times, and amounts
+- **External citations** — law article numbers, standards (ISO/IEC/IEEE 29148, CAP theorem, OWASP/CWE, WCAG), and industry incidents
+- A **confidence bar** with a one-line reason
+- A **falsification condition** — the evidence that would dismiss the finding
+- A **closing path** — who fixes it, and in how long
+
+Findings are placed on a 3×3 likelihood × impact **risk matrix**, and each blocker gets a Gantt-style closing **timeline**.
 
 ## How it works
 
@@ -157,10 +152,13 @@ This keeps the agent set small (4 agents) while supporting many domains.
 
 ### Models
 
-- **Logic & Technical**: Claude Opus 4.7 — deep reasoning where gaps are hardest to spot
-- **UX & Business**: Claude Sonnet 4.6 — broad enumeration of scenarios and risks
+Each agent pins a model tier in its frontmatter (`model:` field), so the mix
+survives model upgrades:
 
-Override in each agent's frontmatter to change the mix.
+- **Logic & Technical**: `opus` — deep reasoning where gaps are hardest to spot
+- **UX & Business**: `sonnet` — broad enumeration of scenarios and risks
+
+Change the `model:` alias in an agent's frontmatter to adjust the mix.
 
 ### Why an HTML dashboard?
 
@@ -195,8 +193,11 @@ hds-redteam/
 │   └── redteam.md
 ├── templates/
 │   └── dashboard.html        # canonical dashboard template + data contract
-├── examples/
-│   └── housing-prd-review.html
+├── examples/                 # sample inputs + one rendered dashboard per mode
+│   ├── housing-prd-review.html
+│   ├── housing-system-design.md          + …-redteam-sec.html
+│   ├── housing-realtime-inventory-rfc.md + …-redteam-rfc.html
+│   └── housing-business-plan.md          + …-redteam-biz.html
 ├── CHANGELOG.md
 ├── README.md
 └── LICENSE
