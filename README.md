@@ -152,13 +152,17 @@ This keeps the agent set small (4 agents) while supporting many domains.
 
 ### Models
 
-Each agent pins a model tier in its frontmatter (`model:` field), so the mix
-survives model upgrades:
+Each agent pins a model **tier** in its frontmatter (`model:` field), not a
+version. Tier aliases always resolve to the newest model in that tier, so the
+plugin picks up model upgrades with no edit required (as of 2026-05: Opus 5 and
+Sonnet 5).
 
 - **Logic & Technical**: `opus` — deep reasoning where gaps are hardest to spot
 - **UX & Business**: `sonnet` — broad enumeration of scenarios and risks
 
-Change the `model:` alias in an agent's frontmatter to adjust the mix.
+Change the `model:` alias in an agent's frontmatter to adjust the mix. Pinning a
+full model ID (e.g. `claude-opus-5`) also works, but then upgrades become manual
+and the agent breaks for anyone without access to that exact model.
 
 ### Why an HTML dashboard?
 
