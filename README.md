@@ -134,7 +134,14 @@ What you'll see in the demo:
   - Falsification conditions ("this finding is dismissed if a legal opinion exists")
   - Closing path with estimated weeks
 
-A `-sec` mode demo is at [examples/housing-system-design-redteam-sec.html](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-system-design-redteam-sec.html) (reviewing [housing-system-design.md](examples/housing-system-design.md)). Demos for `-rfc` and `-biz` modes will follow.
+One rendered demo per mode (each generated end-to-end by the installed plugin):
+
+| Mode | Input | Dashboard | Verdict |
+|---|---|---|---|
+| `-prd` | Housing V1 PRD | [housing-prd-review.html](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-prd-review.html) | NO-GO |
+| `-sec` | [housing-system-design.md](examples/housing-system-design.md) | [housing-system-design-redteam-sec.html](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-system-design-redteam-sec.html) | DO NOT DEPLOY |
+| `-rfc` | [housing-realtime-inventory-rfc.md](examples/housing-realtime-inventory-rfc.md) | [housing-realtime-inventory-rfc-redteam-rfc.html](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-realtime-inventory-rfc-redteam-rfc.html) | NEEDS REVISION |
+| `-biz` | [housing-business-plan.md](examples/housing-business-plan.md) | [housing-business-plan-redteam-biz.html](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-business-plan-redteam-biz.html) | DO NOT LAUNCH |
 
 ## How it works
 

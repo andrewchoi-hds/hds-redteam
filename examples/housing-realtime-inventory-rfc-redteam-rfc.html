@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Red Team Review · Realtime Inventory RFC</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0a; --bg-elev: #141414; --bg-card: #1a1a1a; --border: #262626; --border-strong: #3f3f3f;
+    --text: #e5e5e5; --text-dim: #a3a3a3; --text-faint: #737373; --text-strong: #fafafa;
+    --critical: #ef4444; --critical-bg: rgba(239,68,68,0.08); --high: #f97316; --high-bg: rgba(249,115,22,0.08);
+    --medium: #eab308; --medium-bg: rgba(234,179,8,0.08); --low: #71717a;
+    --accent: #3b82f6; --accent-bg: rgba(59,130,246,0.08); --ok: #22c55e; --verdict: var(--critical);
+  }
+  html, body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Pretendard', 'Segoe UI', system-ui, sans-serif; font-size: 15px; line-height: 1.6; letter-spacing: -0.01em; font-feature-settings: "cv11", "ss01"; }
+  .container { max-width: 1180px; margin: 0 auto; padding: 56px 32px 96px; }
+  .mono { font-family: 'SF Mono', 'JetBrains Mono', Monaco, 'Cascadia Code', monospace; font-size: 0.85em; letter-spacing: 0; }
+  .verdict { display: grid; grid-template-columns: auto 1fr; gap: 32px; align-items: center; padding: 36px 40px; background: linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.02)); border: 1px solid var(--verdict); border-radius: 12px; margin-bottom: 48px; }
+  .verdict-status { font-size: 44px; font-weight: 800; color: var(--verdict); letter-spacing: -0.04em; line-height: 1.05; white-space: nowrap; }
+  .verdict h1 { font-size: 24px; font-weight: 700; color: var(--text-strong); margin-bottom: 6px; letter-spacing: -0.02em; }
+  .verdict-tagline { color: var(--text-dim); font-size: 15px; margin-bottom: 14px; }
+  .verdict-meta { display: flex; flex-wrap: wrap; gap: 14px 24px; font-size: 12.5px; color: var(--text-faint); }
+  .verdict-meta span::before { content: "·"; margin-right: 8px; color: var(--border-strong); }
+  .verdict-meta span:first-child::before { content: ""; margin-right: 0; }
+  section { margin-bottom: 56px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 14px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+  h2 { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-strong); }
+  .section-sub { color: var(--text-faint); font-size: 12.5px; }
+  .matrix-wrap { display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: stretch; }
+  .matrix-y-label { display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl; transform: rotate(180deg); color: var(--text-faint); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; }
+  .matrix-main { display: grid; grid-template-rows: repeat(3, 1fr) auto; gap: 4px; }
+  .matrix-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .matrix-x-labels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 8px; }
+  .matrix-x-labels div { text-align: center; color: var(--text-faint); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; }
+  .matrix-cell { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; min-height: 120px; padding: 12px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; position: relative; }
+  .matrix-cell.danger { background: var(--critical-bg); border-color: rgba(239,68,68,0.3); }
+  .matrix-cell.warn { background: var(--high-bg); border-color: rgba(249,115,22,0.2); }
+  .matrix-cell.caution { background: var(--medium-bg); border-color: rgba(234,179,8,0.18); }
+  .matrix-cell.calm { background: var(--bg-elev); }
+  .matrix-cell-label { position: absolute; top: 8px; right: 10px; font-size: 10px; color: var(--text-faint); letter-spacing: 0.1em; text-transform: uppercase; pointer-events: none; }
+  .dot { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; color: white; cursor: help; transition: transform 0.15s; }
+  .dot:hover { transform: scale(1.15); }
+  .dot.crit { background: var(--critical); } .dot.high { background: var(--high); } .dot.med { background: var(--medium); color: #1a1a1a; } .dot.low { background: var(--low); }
+  .legend { display: flex; gap: 18px; margin-top: 16px; font-size: 12px; color: var(--text-dim); flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
+  .blocker { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; overflow: hidden; transition: border-color 0.15s; }
+  .blocker.crit { border-left: 3px solid var(--critical); } .blocker.high { border-left: 3px solid var(--high); }
+  .blocker:hover { border-color: var(--border-strong); }
+  .blocker-head { display: grid; grid-template-columns: 48px 1fr auto; gap: 18px; align-items: center; padding: 20px 24px; cursor: pointer; user-select: none; }
+  .blocker-num { font-family: 'SF Mono', Monaco, monospace; font-size: 20px; font-weight: 700; color: var(--critical); line-height: 1; }
+  .blocker.high .blocker-num { color: var(--high); }
+  .blocker-title { font-size: 16px; font-weight: 600; color: var(--text-strong); margin-bottom: 6px; }
+  .blocker-tag-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .tag { font-family: 'SF Mono', Monaco, monospace; font-size: 10.5px; padding: 3px 8px; border-radius: 4px; background: var(--bg-elev); color: var(--text-dim); border: 1px solid var(--border); letter-spacing: 0.04em; }
+  .tag.crit { color: var(--critical); border-color: rgba(239,68,68,0.3); background: var(--critical-bg); }
+  .tag.high { color: var(--high); border-color: rgba(249,115,22,0.3); background: var(--high-bg); }
+  .blocker-toggle { color: var(--text-faint); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .blocker[open] .blocker-toggle::before { content: "접기"; } .blocker:not([open]) .blocker-toggle::before { content: "펼치기"; }
+  .blocker-body { padding: 24px 24px 28px 90px; border-top: 1px solid var(--border); }
+  .row { display: grid; grid-template-columns: 96px 1fr; gap: 24px; padding: 14px 0; border-bottom: 1px dashed var(--border); }
+  .row:last-child { border-bottom: none; }
+  .row-label { color: var(--text-faint); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; padding-top: 2px; }
+  .row-content { color: var(--text); }
+  .row-content strong { color: var(--text-strong); }
+  .row-content .citation { display: block; margin-top: 6px; padding-left: 12px; border-left: 2px solid var(--accent); color: var(--text-dim); font-size: 13.5px; }
+  .row-content .citation .src { font-family: 'SF Mono', Monaco, monospace; font-size: 11px; color: var(--text-faint); display: block; margin-top: 2px; }
+  .scenario { background: var(--bg-elev); border-radius: 8px; padding: 14px 16px; border: 1px solid var(--border); color: var(--text); font-size: 14px; }
+  .scenario-step { display: flex; gap: 12px; padding: 4px 0; }
+  .scenario-step::before { content: "→"; color: var(--text-faint); flex-shrink: 0; }
+  .scenario-step.bad::before { content: "✖"; color: var(--critical); } .scenario-step.cur::before { content: "▸"; color: var(--accent); }
+  .falsify { background: rgba(34,197,94,0.04); border: 1px dashed rgba(34,197,94,0.3); border-radius: 6px; padding: 10px 14px; color: var(--text-dim); font-size: 13.5px; }
+  .falsify strong { color: var(--ok); }
+  .close-method { display: flex; justify-content: space-between; align-items: center; gap: 16px; background: var(--accent-bg); border: 1px solid rgba(59,130,246,0.2); border-radius: 6px; padding: 10px 16px; }
+  .close-who { color: var(--text-strong); font-weight: 500; font-size: 14px; }
+  .close-eta { font-family: 'SF Mono', Monaco, monospace; font-size: 12.5px; color: var(--accent); padding: 3px 10px; background: var(--bg); border-radius: 4px; white-space: nowrap; }
+  .confidence-meter { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-faint); letter-spacing: 0.1em; text-transform: uppercase; }
+  .confidence-bar { width: 60px; height: 4px; background: var(--bg-elev); border-radius: 2px; overflow: hidden; }
+  .confidence-fill { height: 100%; background: var(--ok); }
+  .timeline { display: grid; gap: 8px; }
+  .gantt { display: grid; grid-template-columns: 300px 1fr 64px; gap: 16px; align-items: center; padding: 9px 0; }
+  .gantt-label { color: var(--text); font-size: 13px; }
+  .gantt-track { height: 18px; background: var(--bg-elev); border-radius: 4px; position: relative; overflow: hidden; }
+  .gantt-bar { position: absolute; height: 100%; background: linear-gradient(90deg, var(--critical), var(--high)); border-radius: 4px; display: flex; align-items: center; padding: 0 8px; color: white; font-size: 11px; font-weight: 500; white-space: nowrap; }
+  .gantt-weeks { color: var(--text-dim); font-family: 'SF Mono', Monaco, monospace; font-size: 12px; text-align: right; }
+  .action-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .action-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; }
+  .action-role { color: var(--text-faint); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 8px; }
+  .action-task { color: var(--text-strong); font-size: 14px; }
+  footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-faint); font-size: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  footer .mono { color: var(--text-dim); }
+  details > summary { list-style: none; } details > summary::-webkit-details-marker { display: none; }
+  @media (max-width: 720px) {
+    .container { padding: 24px 16px; }
+    .verdict { grid-template-columns: 1fr; padding: 24px; } .verdict-status { font-size: 30px; }
+    .blocker-head { grid-template-columns: 40px 1fr; } .blocker-toggle { grid-column: 2; } .blocker-body { padding-left: 24px; }
+    .row { grid-template-columns: 1fr; gap: 6px; } .action-grid { grid-template-columns: 1fr; }
+    .gantt { grid-template-columns: 140px 1fr 52px; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="verdict">
+    <div class="verdict-status">NEEDS REVISION</div>
+    <div>
+      <h1>실시간 재고 동기화 RFC · 아키텍처 레드팀 (-rfc)</h1>
+      <p class="verdict-tagline">5개 설계 차단. "5초 정합성"을 위해 결제 완결성을 무장애 보장 없는 벤더 API에 동기로 묶고, 롤백·관측 없이 전면 배포 — 재고 오차라는 작은 문제를 결제 전면 중단·이중예약이라는 더 큰 문제로 치환한다.</p>
+      <div class="verdict-meta">
+        <span>분석 일자 <span class="mono">2026-05-30</span></span>
+        <span>모드 <span class="mono">-rfc</span></span>
+        <span>총 발견 <span class="mono">18</span></span>
+        <span>Critical <span class="mono" style="color:var(--critical)">5</span></span>
+        <span>High <span class="mono" style="color:var(--high)">7</span></span>
+        <span>Med/Low <span class="mono" style="color:var(--medium)">6</span></span>
+        <span>관점 <span class="mono">논리 · 기술 · 운영/온콜 · 비즈</span></span>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <div class="section-head">
+      <h2>위험 매트릭스 · 발생가능성 × 영향도</h2>
+      <span class="section-sub">번호는 본문 발견 ID — 호버하면 제목</span>
+    </div>
+    <div class="matrix-wrap">
+      <div class="matrix-y-label">영향도 →</div>
+      <div class="matrix-main">
+        <div class="matrix-row">
+          <div class="matrix-cell caution"><span class="matrix-cell-label">LOW · HIGH</span></div>
+          <div class="matrix-cell warn"><span class="matrix-cell-label">MED · HIGH</span>
+            <span class="dot crit" title="C4 기능 플래그 없는 전면 배포 + 롤백 부재 → blast radius 100%">C4</span>
+            <span class="dot high" title="H2 핸디즈 실패 시 fail-open/closed 정책 미정">H2</span>
+            <span class="dot high" title="H4 웹훅 큐 없는 동기 처리 → burst/retry storm DB 과부하">H4</span>
+            <span class="dot high" title="H7 벤더 호출 요율·쿼터 미검토 → 성수기 매출 캡">H7</span>
+          </div>
+          <div class="matrix-cell danger"><span class="matrix-cell-label">HIGH · HIGH</span>
+            <span class="dot crit" title="C1 인메모리 Map 락 — 다중 인스턴스에서 무효 → 이중예약">C1</span>
+            <span class="dot crit" title="C2 핸디즈 동기 호출 타임아웃·서킷브레이커 부재 → 캐스케이딩 장애">C2</span>
+            <span class="dot crit" title="C3 웹훅 순서·멱등·재시도 부재 → stale UPDATE가 최신 상태 오염">C3</span>
+            <span class="dot crit" title="C5 관측성이 웹훅 카운트뿐 → 장애 탐지·진단 불가">C5</span>
+          </div>
+        </div>
+        <div class="matrix-row">
+          <div class="matrix-cell caution"><span class="matrix-cell-label">LOW · MED</span>
+            <span class="dot low" title="L1 웹훅 인증·서명 검증 미명시 → 위조 이벤트로 재고 조작">L1</span>
+          </div>
+          <div class="matrix-cell caution"><span class="matrix-cell-label">MED · MED</span>
+            <span class="dot high" title="H5 단일 Postgres 병목 (웹훅 write + 검색 read + 락 경합)">H5</span>
+            <span class="dot high" title="H6 문제 규모 미정량 + 대안 1개 → 기회비용·기각논리 공백">H6</span>
+            <span class="dot med" title="M1 락 타이머 값 미정의 + 크래시 시 락 유실">M1</span>
+            <span class="dot med" title="M2 Redis 5s TTL vs 5초 목표 중첩 / 캐시 무효화 레이스">M2</span>
+            <span class="dot med" title="M3 폴링 vs 웹훅 공존 전환 전략 부재 → 재고 플래핑">M3</span>
+            <span class="dot med" title="M4 계약 이벤트 웹훅 재사용 → 스키마 결합·순서 오염">M4</span>
+          </div>
+          <div class="matrix-cell warn"><span class="matrix-cell-label">HIGH · MED</span>
+            <span class="dot high" title="H1 정확도 99.9% SLI 부재 → 측정·반증 불가">H1</span>
+            <span class="dot high" title="H3 '인터페이스 변경 없음' 목표 vs 동기 호출 = 동작 계약 파괴">H3</span>
+          </div>
+        </div>
+        <div class="matrix-row">
+          <div class="matrix-cell calm"><span class="matrix-cell-label">LOW · LOW</span>
+            <span class="dot low" title="L2 5초 TTL로도 가능→품절 경합 윈도우 잔존">L2</span>
+          </div>
+          <div class="matrix-cell calm"><span class="matrix-cell-label">MED · LOW</span></div>
+          <div class="matrix-cell caution"><span class="matrix-cell-label">HIGH · LOW</span></div>
+        </div>
+        <div class="matrix-x-labels">
+          <div>발생가능성 LOW</div><div>발생가능성 MED</div><div>발생가능성 HIGH</div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--critical)"></span>Critical · 설계 차단</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--high)"></span>High · 승인 전 권장</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--medium)"></span>Medium</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--low)"></span>Low</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>설계 차단 (Critical) · 5</h2>
+      <span class="section-sub">시나리오 · 외부 근거 · 반증 조건 · 닫는 법</span>
+    </div>
+
+    <details class="blocker crit" open>
+      <summary class="blocker-head">
+        <div class="blocker-num">C1</div>
+        <div>
+          <div class="blocker-title">인메모리 Map 락 — 다중 인스턴스에서 무효 → 이중예약</div>
+          <div class="blocker-tag-row"><span class="tag crit">CRITICAL</span><span class="tag">논리·기술·운영 3관점</span><span class="tag">L:HIGH · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:92%"></span></span><span class="mono" style="color:var(--ok)">92%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">API 서버가 LB 뒤 3개 인스턴스로 운영(§5 "기존 API 서버에 추가 배포" = 복수)</div>
+          <div class="scenario-step cur">사용자 A→인스턴스#1이 MapA[1023]=A 획득, 사용자 B→인스턴스#3은 MapB에 없어 MapB[1023]=B 획득</div>
+          <div class="scenario-step cur">둘 다 "락 성공" + §3.2 동기 확인도 웹훅 반영 전이라 "가능" 통과</div>
+          <div class="scenario-step bad">동일 방 2명 결제 완료 → 이중예약, RFC가 없애려던 재고 문제를 더 나쁜 형태로 재생산</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§3.3 "애플리케이션 메모리(Node 프로세스)에 Map&lt;roomId, userId&gt; 형태로 락" — 프로세스 로컬 상태는 인스턴스 간 공유 불가</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">프로세스 로컬 락은 다중 노드 상호배제를 보장 못함 — 공유 저장소(Redis/DB) + fencing token 필요.<span class="src">Kleppmann, "How to do distributed locking" (2016)</span></div>
+          <div class="citation">결제 멱등/락은 공유 상태(DB 유니크 키)로 강제해야 함.<span class="src">Airbnb Eng, "Avoiding Double Payments in a Distributed Payments System"</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 서비스가 영구히 단일 프로세스·단일 인스턴스로만 운영(오토스케일·블루그린 병존 절대 없음)됨이 RFC에 명시되거나, 락을 Redis SETNX+fencing/DB row lock으로 옮기면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>백엔드</strong> · Redis 분산 락(TTL+fencing) 또는 DB FOR UPDATE + 예약 유니크 제약 + 멀티인스턴스 동시성 테스트</div><div class="close-eta">~2-3일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">C2</div>
+        <div>
+          <div class="blocker-title">핸디즈 동기 호출에 타임아웃·서킷브레이커·폴백 부재 → 캐스케이딩 장애</div>
+          <div class="blocker-tag-row"><span class="tag crit">CRITICAL</span><span class="tag">논리·기술·운영·비즈 4관점</span><span class="tag">L:HIGH · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:90%"></span></span><span class="mono" style="color:var(--ok)">90%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">핸디즈 재고 API p99가 배포 중 200ms → 8s로 상승(외부 벤더, 통제 밖)</div>
+          <div class="scenario-step cur">결제 진입 스레드가 8초씩 대기 → 커넥션/스레드 풀 고갈</div>
+          <div class="scenario-step cur">재고 무관한 검색·예약 요청까지 대기 큐에 밀려 전체 API 스톨, 헬스체크 실패 → LB가 인스턴스 제거</div>
+          <div class="scenario-step bad">핸디즈 부분 장애가 우리 서비스 전면 장애로 증폭. 기능 플래그 없어 롤백=재배포</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§3.2 "핸디즈 재고 조회 API를 동기 호출해 최종 확인" (타임아웃·서킷·폴백 전무) + §5 "기능 플래그 없이 전체 트래픽 즉시 적용"</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">Integration Point에 타임아웃·서킷·벌크헤드 없으면 느린 외부 응답이 커넥션 풀을 고갈시켜 전체 장애로 전파.<span class="src">Nygard, Release It! 2nd — Stability Patterns</span></div>
+          <div class="citation">동기 체이닝의 합성 가용성 = 각 가용성의 곱; 모든 원격 호출에 타임아웃 필수.<span class="src">Google SRE Book "Addressing Cascading Failures" · AWS Builders' Library</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> §3.2에 명시적 타임아웃(예: 300~800ms) + 서킷브레이커 + 실패 시 §3.1 웹훅 기반 DB 값 폴백 + 벌크헤드(결제 경로 격리)가 있으면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>플랫폼</strong> · 타임아웃 + 서킷 + DB 폴백 + 벌크헤드 + 장애 주입 테스트</div><div class="close-eta">~2-4일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">C3</div>
+        <div>
+          <div class="blocker-title">웹훅 순서·멱등·재시도 보장 없음 → out-of-order UPDATE가 최신 재고 오염</div>
+          <div class="blocker-tag-row"><span class="tag crit">CRITICAL</span><span class="tag">논리·기술·비즈 3관점</span><span class="tag">L:HIGH · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:88%"></span></span><span class="mono" style="color:var(--ok)">88%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">핸디즈가 room#77에 "품절"(seq=5) 직후 "복구"(seq=6) 웹훅 전송</div>
+          <div class="scenario-step cur">네트워크 재전송/병렬 워커로 seq=6이 먼저, seq=5가 나중 도착</div>
+          <div class="scenario-step cur">핸들러가 순번 검사 없이 순차 blind UPDATE → 최종 상태 "품절"로 고정</div>
+          <div class="scenario-step bad">실제 예약 가능한 방이 영구 "품절" 표기(매출 손실) 또는 반대로 오버셀 → §2 정확도 목표 정면 위반</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§3.1 "웹훅 수신 즉시 Postgres listings.available UPDATE" (순서·버전·멱등키·재시도 전무)</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">"이벤트는 생성 순서대로 도착하지 않으며 두 번 이상 전달될 수 있다 — 멱등 핸들러를 만들라."<span class="src">Stripe Webhooks Docs · GitHub/AWS SNS at-least-once</span></div>
+          <div class="citation">last-write-wins의 위험, 버전/타임스탬프 조건부 쓰기 필요.<span class="src">Kleppmann, DDIA Ch.5</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 이벤트에 단조 증가 버전/시퀀스가 있고 `UPDATE ... WHERE incoming_version &gt; stored_version` + 멱등 dedup + 유실 감지(재조회 폴백)를 구현하면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>백엔드 + 핸디즈 협의</strong> · 이벤트 버전 조건부 UPDATE + dedup + DLQ/재조회</div><div class="close-eta">~3-5일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">C4</div>
+        <div>
+          <div class="blocker-title">기능 플래그 없는 전면 배포 + 롤백 전략 부재 → blast radius 100%</div>
+          <div class="blocker-tag-row"><span class="tag crit">CRITICAL</span><span class="tag">논리·기술·운영·비즈 4관점</span><span class="tag">L:MED · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:88%"></span></span><span class="mono" style="color:var(--ok)">88%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">신규 로직 3종(웹훅 핸들러·동기 확인·락)을 한 배포로 100% 트래픽에 즉시 적용</div>
+          <div class="scenario-step cur">핸디즈 응답 스키마 엣지케이스(available=null 신규 매물)에서 §3.2 예외 → 결제 진입 전부 500</div>
+          <div class="scenario-step cur">끌 수 있는 플래그가 없어 git revert → 빌드 → 재배포(15~40분)</div>
+          <div class="scenario-step bad">그 시간 내내 결제 100% 중단 (카나리 10%였다면 영향 1/10) + 매출 손실 + "매물 다 품절" SNS 확산</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§5 "기능 플래그 없이 전체 트래픽에 즉시 적용" (카나리·롤백·킬스위치 전무)</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">변경은 카나리→점진 확대로 blast radius 축소, 즉시 롤백 킬스위치 필수.<span class="src">Google SRE Book "Canarying Releases" · Fowler "Feature Toggles"</span></div>
+          <div class="citation">단일 규칙을 전 트래픽에 즉시 배포해 전역 장애 — 점진 배포·글로벌 킬스위치 부재가 확산 원인.<span class="src">Cloudflare 2019-07-02 post-mortem</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 런타임 기능 플래그로 §3.2/§3.1 개별 on-off 가능 + 1%→10%→100% 카나리 + 자동 롤백 조건(에러율 임계)이 있으면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>플랫폼</strong> · 기능 플래그 + 단계적 롤아웃 + 롤백 런북(락/캐시 정리 포함)</div><div class="close-eta">~2일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">C5</div>
+        <div>
+          <div class="blocker-title">관측성이 "웹훅 수신 건수 로그"뿐 → 3am 장애 시 탐지·진단 불가</div>
+          <div class="blocker-tag-row"><span class="tag crit">CRITICAL</span><span class="tag">기술·운영 2관점</span><span class="tag">L:HIGH · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:88%"></span></span><span class="mono" style="color:var(--ok)">88%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">핸디즈 웹훅 지연이 5s→60s로 악화, 건수 로그는 정상(결국 다 도착)이라 알림 미발생</div>
+          <div class="scenario-step cur">DB available 60s stale → 정확도 하락·소수 이중예약. 온콜은 "결제 실패율 상승"만 봄</div>
+          <div class="scenario-step cur">지연/락경합/캐시 stale 지표가 없어 코드 열어 임시 로그 추가·재배포로 진단</div>
+          <div class="scenario-step bad">MTTR 30분~수시간, 근본 원인 추적 불가 상태로 장기 부분 장애 지속</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§6 "웹훅 수신 건수를 로그로 남긴다" — 관측 섹션 전체. 지연·실패율·락경합·정확도 SLI 전무</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">4 Golden Signals(latency·traffic·errors·saturation) 필요 — 카운트 로그는 사후 포렌식 자료일 뿐 모니터링이 아님.<span class="src">Google SRE Book "Monitoring Distributed Systems"</span></div>
+          <div class="citation">RED method(Rate·Errors·Duration) + 외부 의존엔 분산 트레이싱.<span class="src">Weaveworks/Tom Wilkie · OpenTelemetry</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 웹훅 반영 lag·핸디즈 호출 latency/에러율·락 경합·캐시 stale·재고 정확도 SLI에 메트릭+알림+트레이스가 이미 있으면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>플랫폼/SRE</strong> · RED 메트릭 + SLO 알림 + 트레이싱 + 정확도 감사 잡</div><div class="close-eta">~3일</div></div></div></div>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>승인 전 권장 (High) · 7</h2>
+      <span class="section-sub">Critical과 연쇄되거나 측정·의사결정을 막는 공백</span>
+    </div>
+
+    <details class="blocker high">
+      <summary class="blocker-head">
+        <div class="blocker-num">H1</div>
+        <div>
+          <div class="blocker-title">"정확도 99.9%" 목표의 SLI·측정 방법 부재 → 측정·반증 불가</div>
+          <div class="blocker-tag-row"><span class="tag high">HIGH</span><span class="tag">논리·기술·운영·비즈 4관점</span><span class="tag">L:HIGH · I:MED</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:88%"></span></span><span class="mono" style="color:var(--ok)">88%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">출시 3개월 후 "99.9% 달성했나?" 질의 — 로그엔 웹훅 건수뿐, 정확도 산식 없음</div>
+          <div class="scenario-step cur">"정확도"의 분모(진입 건수? 노출 건수?)를 놓고 팀 간 논쟁</div>
+          <div class="scenario-step bad">임의 지표를 사후 정의해 "달성" 보고 → 실제 오버셀은 계속되나 지표상 초록불</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§2 "결제 진입 시점 재고 정확도 99.9%" vs §6 관측 불일치 (SLI 정의·측정창·baseline 전무)</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">SLO는 측정 가능한 SLI로 정의돼야 함; 측정 없는 목표는 관리 불가.<span class="src">Google SRE Book Ch.4 SLO · Popper 반증가능성 · ISO/IEC/IEEE 29148 §5.2.5</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> "정확도 = 진입 시 실제 재고 일치 건수 / 전체 진입 건수, 7일 롤링, 진입 응답에서 측정" 같은 SLI + 해당 메트릭이 §6에 있으면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>PM/데이터</strong> · SLI 정의 + 전후/AB 정확도 대시보드</div><div class="close-eta">~1-2주</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker high">
+      <summary class="blocker-head">
+        <div class="blocker-num">H2</div>
+        <div>
+          <div class="blocker-title">핸디즈 호출 실패(타임아웃/5xx/429) 시 fail-open/closed 정책 미정</div>
+          <div class="blocker-tag-row"><span class="tag high">HIGH</span><span class="tag">운영·기술 2관점</span><span class="tag">L:MED · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:75%"></span></span><span class="mono" style="color:var(--medium)">75%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">핸디즈가 30% 확률로 5xx 반환하는 부분 장애 — §3.2는 "가능/품절" 2분기만 정의</div>
+          <div class="scenario-step cur">구현자가 급히 catch에서 available=true로 fallback(fail-open) → 품절 방도 결제 통과 → 오버셀 대량</div>
+          <div class="scenario-step bad">또는 5xx를 "품절"로 처리(fail-closed 오탐) → 실제 가능한 방도 결제 이탈, 매출 손실</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§3.2 "응답이 '가능'이면 진행, 아니면 '품절'" — 호출 자체 실패(예외/타임아웃/429) 분기 누락</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">외부 의존 실패 시 명시적 degrade 정책(결제 정합성엔 fail-closed) 필요.<span class="src">Nygard Release It! "Fail Fast" · 결제 플랫폼 fail-closed 관행</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> "핸디즈 실패 시 fail-closed(결제 보류+재시도 안내)" 정책이 §3.2에 명시되면 심각도 하향.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>플랫폼</strong> · 실패 유형별 fail-closed 정책 명문화 + fault-injection 테스트</div><div class="close-eta">~1일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker high">
+      <summary class="blocker-head">
+        <div class="blocker-num">H3</div>
+        <div>
+          <div class="blocker-title">"기존 인터페이스 변경 없음" 목표 vs §3.2 동기 호출 = 동작 계약(behavioral contract) 파괴</div>
+          <div class="blocker-tag-row"><span class="tag high">HIGH</span><span class="tag">논리 1관점</span><span class="tag">L:HIGH · I:MED</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:82%"></span></span><span class="mono" style="color:var(--ok)">82%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">앱팀이 "인터페이스 변경 없음"을 근거로 회귀 테스트 생략</div>
+          <div class="scenario-step cur">배포 후 결제 진입 API가 신규 "품절" 응답 + 8s 지연 반환</div>
+          <div class="scenario-step bad">앱이 미처리 → 무한 로딩/크래시, 스토어 리뷰 급락, 핫픽스 강제 업데이트</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§2 "기존 검색·예약 API 인터페이스 변경 없음" vs §3.2 외부 동기 호출·신규 오류·§3.3 락 추가</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">관찰 가능한 동작(지연·오류 의미) 변화는 호환성 파괴; 모든 관찰 가능한 동작에 의존자가 생긴다.<span class="src">Hyrum's Law · SemVer/API evolution · ISO/IEC/IEEE 29148 무모순성</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> §2를 "요청/응답 스키마 불변, 단 지연·신규 오류 코드 존재"로 정정하고 소비자(앱) 영향 분석표가 첨부되면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>작성자 + 앱팀</strong> · 목표 문구 정정 + 소비자 계약 테스트</div><div class="close-eta">~0.5일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker high">
+      <summary class="blocker-head">
+        <div class="blocker-num">H4</div>
+        <div>
+          <div class="blocker-title">웹훅을 큐 없이 요청 핸들러 내 동기 처리 → burst/retry storm 시 DB·캐시 과부하</div>
+          <div class="blocker-tag-row"><span class="tag high">HIGH</span><span class="tag">운영·기술 2관점</span><span class="tag">L:MED · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:72%"></span></span><span class="mono" style="color:var(--medium)">72%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">핸디즈가 점검 후 12시간치 재고 이벤트를 backfill로 한꺼번에 재전송</div>
+          <div class="scenario-step cur">웹훅 1건당 동기 DB UPDATE + Redis DEL이 수만 건 동시 실행 → 커넥션 풀 소진</div>
+          <div class="scenario-step cur">우리 핸들러가 느려지자 핸디즈가 타임아웃으로 재전송 → retry storm으로 요청 배증</div>
+          <div class="scenario-step bad">같은 풀을 쓰는 검색·결제까지 지연, 정합성 개선하려던 재고가 오히려 더 낡아짐</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§3.1 "웹훅 수신 즉시 Postgres UPDATE" (버퍼링·큐·레이트리밋·backpressure 없음)</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">프로듀서 재전송/burst 대비 컨슈머는 큐 기반 비동기+멱등 권장; 큐잉 없는 시스템은 과부하 시 연쇄 실패.<span class="src">Stripe "Handling bursts of events" · Google SRE Book Ch.22 "Handling Overload"</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 핸디즈 웹훅 발송 빈도/버스트 상한이 계약상 우리 처리 용량 내로 정해져 있거나, 수신→큐 적재→워커 처리(backpressure) 구조면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>플랫폼</strong> · 웹훅 큐(SQS/Kafka) + 워커 rate limit/backpressure</div><div class="close-eta">~3-5일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker high">
+      <summary class="blocker-head">
+        <div class="blocker-num">H5</div>
+        <div>
+          <div class="blocker-title">단일 Postgres에 웹훅 write + 검색 read + 결제 락 집중 → 핫 로우·커넥션 병목</div>
+          <div class="blocker-tag-row"><span class="tag high">HIGH</span><span class="tag">기술 1관점</span><span class="tag">L:MED · I:MED</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:65%"></span></span><span class="mono" style="color:var(--medium)">65%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">오픈런 매물 room#777에 초당 수백 검색 + 잦은 재고 웹훅 동시 유입</div>
+          <div class="scenario-step cur">웹훅 UPDATE가 핫 로우 락, 결제 FOR UPDATE와 경합 → 락 대기 트랜잭션이 커넥션 풀 점유</div>
+          <div class="scenario-step bad">풀 소진으로 무관한 검색까지 지연, 웹훅 반영이 5s 초과하며 SLO 붕괴</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§3.1/§3.2/§3.3/§3.4가 모두 동일 listings/Postgres에 수렴 (읽기 복제·파티셔닝·풀러 언급 없음)</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">단일 리더 DB의 핫 로우 경합·커넥션 포화가 처리량 상한을 만듦; 장기 락 트랜잭션의 풀 고갈은 흔한 장애.<span class="src">Kleppmann DDIA Ch.7-8 · PostgreSQL/pgbouncer 운영 가이드</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 예상 QPS/write rate가 단일 Postgres 여유 내이고, 캐시가 대부분 read를 흡수하며 락 트랜잭션이 극히 짧음이 부하 테스트로 확인되면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>백엔드/DBA</strong> · 부하 산정 후 읽기 복제·pgbouncer·핫키 분산 결정 + 부하 테스트</div><div class="close-eta">~2-3일</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker high">
+      <summary class="blocker-head">
+        <div class="blocker-num">H6</div>
+        <div>
+          <div class="blocker-title">문제 규모 미정량 + 대안 1개뿐 → 기회비용 미검토, 기각 논리 공백</div>
+          <div class="blocker-tag-row"><span class="tag high">HIGH</span><span class="tag">비즈·논리 2관점</span><span class="tag">L:MED · I:MED</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:65%"></span></span><span class="mono" style="color:var(--medium)">65%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">"사례가 늘고 있다"는 정성 서술만으로 최우선 프로젝트로 채택 (건수·환불액 없음)</div>
+          <div class="scenario-step cur">아키텍처 리뷰에서 "큐/CDC/분산락/outbox는 검토했나?" 질문 — 근거 없어 답변 불가</div>
+          <div class="scenario-step bad">실제 영향이 작으면(월 수십 건) 재설계 리소스가 더 높은 ROI 백로그를 밀어냄 → 기회비용 손실</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§1 배경(정량 수치 없음) + §4 대안 "폴링 1분 단축: 기각" 한 줄 (큐/CDC/분산락 미검토)</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">Reach/Impact 미정량 제안은 우선순위 논의에서 배제 권고; ADR은 고려한 대안·기각 사유 명시 요구.<span class="src">RICE/ICE 프레임워크 · ADR 표준 · ISO/IEC/IEEE 29148 rationale</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> §1에 월별 품절이탈 건수/환불액/전환율 하락폭이 있고 §4에 2~3개 대안(큐·CDC·분산락·outbox) 정량 비교가 추가되면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>PM</strong> · 최근 3개월 로그로 문제 규모 집계 + 대안 비교표(지연·정합성·운영부담)</div><div class="close-eta">~1주</div></div></div></div>
+      </div>
+    </details>
+
+    <details class="blocker high">
+      <summary class="blocker-head">
+        <div class="blocker-num">H7</div>
+        <div>
+          <div class="blocker-title">결제 진입마다 벤더 동기 호출 — 요율·쿼터 미검토 → TCO 증가·성수기 매출 캡</div>
+          <div class="blocker-tag-row"><span class="tag high">HIGH</span><span class="tag">비즈 1관점</span><span class="tag">L:MED · I:HIGH</span>
+            <span class="confidence-meter">확신도 <span class="confidence-bar"><span class="confidence-fill" style="width:65%"></span></span><span class="mono" style="color:var(--medium)">65%</span></span></div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row"><div class="row-label">시나리오</div><div class="row-content"><div class="scenario">
+          <div class="scenario-step cur">성수기(이사철) 결제 진입 트래픽이 평시 5배 → 핸디즈 재고 API 초당 요청 한도 초과 429</div>
+          <div class="scenario-step cur">429 처리 로직 없어(H2) "품절" 오탐으로 처리</div>
+          <div class="scenario-step bad">최대 매출 시점에 전환율이 벤더 쿼터로 인위적 제한, 쿼터 상향 재계약으로 예정 없던 비용 증가</div>
+        </div></div></div>
+        <div class="row"><div class="row-label">위치</div><div class="row-content">§3.2 결제 진입마다 동기 호출 — 요청량 기반 과금/rate limit 협의 여부 누락</div></div>
+        <div class="row"><div class="row-label">외부 근거</div><div class="row-content">
+          <div class="citation">대부분 파트너 API는 요청량 기반 과금·tier별 rate limit 운영; 결제 경로에 벤더 종속 호출을 박으면 매출이 벤더 쿼터에 캡됨.<span class="src">공개 API 과금 관행 · Zigbang/Dabang 매물 소스 의존 분쟁</span></div>
+        </div></div>
+        <div class="row"><div class="row-label">반증 조건</div><div class="row-content"><div class="falsify"><strong>기각 조건:</strong> 핸디즈와 이 신규 호출 패턴에 대한 무제한/고쿼터 계약이 체결돼 있고 429 처리 정책이 있으면 해소.</div></div></div>
+        <div class="row"><div class="row-label">닫는 법</div><div class="row-content"><div class="close-method"><div class="close-who"><strong>BizDev/계약</strong> · 피크 기준 rate limit·과금·429 정책 확정</div><div class="close-eta">~2주</div></div></div></div>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>수정 타임라인 · 설계 차단 항목</h2>
+      <span class="section-sub">병렬 처리 가정 — 최장 5일(웹훅 순서·큐), 대부분 승인 전 게이트</span>
+    </div>
+    <div class="timeline">
+      <div class="gantt"><div class="gantt-label">C4 기능 플래그·롤백</div><div class="gantt-track"><div class="gantt-bar" style="left:0; width:40%">플랫폼</div></div><div class="gantt-weeks">2d</div></div>
+      <div class="gantt"><div class="gantt-label">C1 분산 락 전환</div><div class="gantt-track"><div class="gantt-bar" style="left:0; width:60%">백엔드</div></div><div class="gantt-weeks">3d</div></div>
+      <div class="gantt"><div class="gantt-label">C2 타임아웃·서킷·폴백</div><div class="gantt-track"><div class="gantt-bar" style="left:0; width:70%">플랫폼</div></div><div class="gantt-weeks">2-4d</div></div>
+      <div class="gantt"><div class="gantt-label">C5 관측성(RED+SLO)</div><div class="gantt-track"><div class="gantt-bar" style="left:0; width:60%">SRE</div></div><div class="gantt-weeks">3d</div></div>
+      <div class="gantt"><div class="gantt-label">C3 웹훅 순서·멱등</div><div class="gantt-track"><div class="gantt-bar" style="left:0; width:100%">백엔드+핸디즈</div></div><div class="gantt-weeks">3-5d</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>다음 액션 · 역할별</h2>
+      <span class="section-sub">설계 차단 해소 시작점</span>
+    </div>
+    <div class="action-grid">
+      <div class="action-card"><div class="action-role">RFC 작성자 / 리뷰어</div><div class="action-task">승인 보류. H6 문제 규모 정량화 + 대안 비교(큐/CDC/분산락)로 이 재설계가 정당한지 먼저 검증. H3 목표 문구 정정.</div></div>
+      <div class="action-card"><div class="action-role">플랫폼 / 백엔드</div><div class="action-task">C1 분산 락, C2 타임아웃·서킷·폴백, C3 웹훅 순서·멱등이 핵심. 연쇄 체인(핸디즈 hang → 풀 고갈 → 전면 장애)을 끊는 순서로.</div></div>
+      <div class="action-card"><div class="action-role">SRE / BizDev</div><div class="action-task">C4 플래그·카나리·롤백 + C5 RED 메트릭·SLO를 배포 게이트로. H7 핸디즈 rate limit·과금 계약 확인.</div></div>
+    </div>
+  </section>
+
+  <footer>
+    <div>Red Team Review · hds-redteam v1.1.0 · 논리 · 기술 · 운영/온콜 · 비즈 4관점 병렬 비평</div>
+    <div>Source: <span class="mono">housing-realtime-inventory-rfc.md</span></div>
+  </footer>
+
+</div>
+</body>
+</html>

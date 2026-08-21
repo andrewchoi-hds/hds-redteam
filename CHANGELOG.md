@@ -6,9 +6,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ## Unreleased
 
 ### Added
-- `-sec` mode example: `examples/housing-system-design.md` + its rendered
-  dashboard `examples/housing-system-design-redteam-sec.html` (DO NOT DEPLOY,
-  7 Critical). Generated end-to-end by the installed plugin.
+- One rendered demo per domain mode, each generated end-to-end by the installed
+  plugin (sample input `.md` + rendered dashboard `.html`):
+  - `-sec` — `housing-system-design` (DO NOT DEPLOY, 7 Critical)
+  - `-rfc` — `housing-realtime-inventory-rfc` (NEEDS REVISION, 5 Critical)
+  - `-biz` — `housing-business-plan` (DO NOT LAUNCH, 5 Critical)
+  (`-prd` demo `housing-prd-review.html` shipped in 1.0.0.)
 
 ## [1.1.0] — 2026-05-29
 
