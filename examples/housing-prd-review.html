@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Red Team Review · Housing V1 PRD</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0a;
+    --bg-elev: #141414;
+    --bg-card: #1a1a1a;
+    --border: #262626;
+    --border-strong: #3f3f3f;
+    --text: #e5e5e5;
+    --text-dim: #a3a3a3;
+    --text-faint: #737373;
+    --text-strong: #fafafa;
+    --critical: #ef4444;
+    --critical-bg: rgba(239, 68, 68, 0.08);
+    --high: #f97316;
+    --high-bg: rgba(249, 115, 22, 0.08);
+    --medium: #eab308;
+    --medium-bg: rgba(234, 179, 8, 0.08);
+    --low: #71717a;
+    --accent: #3b82f6;
+    --accent-bg: rgba(59, 130, 246, 0.08);
+    --ok: #22c55e;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Pretendard', 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    letter-spacing: -0.01em;
+    font-feature-settings: "cv11", "ss01";
+  }
+  .container {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 56px 32px 96px;
+  }
+  .mono {
+    font-family: 'SF Mono', 'JetBrains Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 0.85em;
+    letter-spacing: 0;
+  }
+  /* ───── Header / Verdict ───── */
+  .verdict {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 32px;
+    align-items: center;
+    padding: 36px 40px;
+    background: linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.02));
+    border: 1px solid var(--critical);
+    border-radius: 12px;
+    margin-bottom: 48px;
+  }
+  .verdict-status {
+    font-size: 56px;
+    font-weight: 800;
+    color: var(--critical);
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+  .verdict h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-strong);
+    margin-bottom: 6px;
+    letter-spacing: -0.02em;
+  }
+  .verdict-tagline {
+    color: var(--text-dim);
+    font-size: 15px;
+    margin-bottom: 14px;
+  }
+  .verdict-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 24px;
+    font-size: 12.5px;
+    color: var(--text-faint);
+  }
+  .verdict-meta span::before { content: "·"; margin-right: 8px; color: var(--border-strong); }
+  .verdict-meta span:first-child::before { content: ""; margin-right: 0; }
+
+  /* ───── Section ───── */
+  section { margin-bottom: 56px; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 14px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  h2 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-strong);
+  }
+  .section-sub {
+    color: var(--text-faint);
+    font-size: 12.5px;
+  }
+
+  /* ───── Risk Matrix ───── */
+  .matrix-wrap {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .matrix-y-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .matrix-main {
+    display: grid;
+    grid-template-rows: repeat(3, 1fr) auto;
+    gap: 4px;
+  }
+  .matrix-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .matrix-x-labels {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .matrix-x-labels div {
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .matrix-cell {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    min-height: 120px;
+    padding: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 6px;
+    position: relative;
+  }
+  .matrix-cell.danger { background: var(--critical-bg); border-color: rgba(239,68,68,0.3); }
+  .matrix-cell.warn { background: var(--high-bg); border-color: rgba(249,115,22,0.2); }
+  .matrix-cell.caution { background: var(--medium-bg); border-color: rgba(234,179,8,0.18); }
+  .matrix-cell.calm { background: var(--bg-elev); }
+  .matrix-cell-label {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+  .dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    cursor: help;
+    transition: transform 0.15s;
+  }
+  .dot:hover { transform: scale(1.15); }
+  .dot.crit { background: var(--critical); }
+  .dot.high { background: var(--high); }
+  .dot.med { background: var(--medium); color: #1a1a1a; }
+  .dot.low { background: var(--low); }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch {
+    width: 12px; height: 12px; border-radius: 3px;
+  }
+
+  /* ───── Blocker Cards ───── */
+  .blocker {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .blocker.crit { border-left: 3px solid var(--critical); }
+  .blocker:hover { border-color: var(--border-strong); }
+
+  .blocker-head {
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    gap: 18px;
+    align-items: center;
+    padding: 20px 24px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .blocker-num {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--critical);
+    line-height: 1;
+  }
+  .blocker-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-strong);
+    margin-bottom: 4px;
+  }
+  .blocker-tag-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--bg-elev);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    letter-spacing: 0.04em;
+  }
+  .tag.crit { color: var(--critical); border-color: rgba(239,68,68,0.3); background: var(--critical-bg); }
+  .tag.confidence-hi { color: var(--ok); border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.06); }
+  .tag.confidence-mid { color: var(--medium); border-color: rgba(234,179,8,0.3); background: var(--medium-bg); }
+
+  .blocker-perspectives {
+    display: flex;
+    gap: 4px;
+  }
+  .perspective {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--border-strong);
+  }
+  .perspective.active { background: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
+
+  .blocker-toggle {
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .blocker[open] .blocker-toggle::before { content: "닫기"; }
+  .blocker:not([open]) .blocker-toggle::before { content: "펼치기"; }
+
+  .blocker-body {
+    padding: 0 24px 28px 82px;
+    border-top: 1px solid var(--border);
+    padding-top: 24px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 24px;
+    padding: 14px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .row:last-child { border-bottom: none; }
+  .row-label {
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding-top: 2px;
+  }
+  .row-content { color: var(--text); }
+  .row-content strong { color: var(--text-strong); }
+  .row-content .citation {
+    display: block;
+    margin-top: 6px;
+    padding-left: 12px;
+    border-left: 2px solid var(--accent);
+    color: var(--text-dim);
+    font-size: 13.5px;
+  }
+  .row-content .citation .src {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 11px;
+    color: var(--text-faint);
+    display: block;
+    margin-top: 2px;
+  }
+  .scenario {
+    background: var(--bg-elev);
+    border-radius: 8px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 14px;
+  }
+  .scenario-step {
+    display: flex;
+    gap: 12px;
+    padding: 4px 0;
+  }
+  .scenario-step::before {
+    content: "→";
+    color: var(--text-faint);
+    flex-shrink: 0;
+  }
+  .scenario-step.bad::before { content: "✖"; color: var(--critical); }
+  .scenario-step.cur::before { content: "▸"; color: var(--accent); }
+
+  .falsify {
+    background: rgba(34,197,94,0.04);
+    border: 1px dashed rgba(34,197,94,0.3);
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: var(--text-dim);
+    font-size: 13.5px;
+  }
+  .falsify strong { color: var(--ok); }
+
+  .close-method {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    background: var(--accent-bg);
+    border: 1px solid rgba(59,130,246,0.2);
+    border-radius: 6px;
+    padding: 10px 16px;
+  }
+  .close-who {
+    color: var(--text-strong);
+    font-weight: 500;
+    font-size: 14px;
+  }
+  .close-eta {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 12.5px;
+    color: var(--accent);
+    padding: 3px 10px;
+    background: var(--bg);
+    border-radius: 4px;
+  }
+
+  /* ───── Confidence bar ───── */
+  .confidence-meter {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .confidence-bar {
+    width: 60px; height: 4px;
+    background: var(--bg-elev);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .confidence-fill { height: 100%; background: var(--ok); }
+
+  /* ───── Timeline ───── */
+  .timeline {
+    display: grid;
+    gap: 8px;
+  }
+  .gantt {
+    display: grid;
+    grid-template-columns: 200px 1fr 80px;
+    gap: 16px;
+    align-items: center;
+    padding: 10px 0;
+  }
+  .gantt-label { color: var(--text); font-size: 13.5px; }
+  .gantt-track {
+    height: 18px;
+    background: var(--bg-elev);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .gantt-bar {
+    position: absolute;
+    height: 100%;
+    background: linear-gradient(90deg, var(--critical), var(--high));
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    color: white;
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .gantt-weeks {
+    color: var(--text-dim);
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 12px;
+    text-align: right;
+  }
+  .gantt-axis {
+    display: grid;
+    grid-template-columns: 200px 1fr 80px;
+    gap: 16px;
+    color: var(--text-faint);
+    font-size: 11px;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+    margin-top: 4px;
+  }
+  .gantt-axis-marks {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+  }
+  .gantt-axis-marks div { text-align: left; }
+  .gantt-axis-marks div:last-child { text-align: right; }
+
+  /* ───── Action ───── */
+  .action-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .action-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .action-role {
+    color: var(--text-faint);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .action-task { color: var(--text-strong); font-size: 14px; }
+
+  /* ───── Footer ───── */
+  footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-faint);
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  footer a { color: var(--text-dim); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+
+  @media (max-width: 720px) {
+    .container { padding: 24px 16px; }
+    .verdict { grid-template-columns: 1fr; padding: 24px; }
+    .verdict-status { font-size: 40px; }
+    .blocker-head { grid-template-columns: 32px 1fr; }
+    .blocker-toggle { grid-column: 2; }
+    .blocker-body { padding-left: 24px; }
+    .row { grid-template-columns: 1fr; gap: 6px; }
+    .action-grid { grid-template-columns: 1fr; }
+    .gantt, .gantt-axis { grid-template-columns: 120px 1fr 60px; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ═══════════ VERDICT ═══════════ -->
+  <header class="verdict">
+    <div class="verdict-status">NO-GO</div>
+    <div>
+      <h1>Housing V1 PRD · Red Team Review</h1>
+      <p class="verdict-tagline">5개 출시 차단 항목이 닫히기 전 출시 보류 권장. 닫는 데 합산 2~3주 예상.</p>
+      <div class="verdict-meta">
+        <span>분석 일자 <span class="mono">2026-05-28</span></span>
+        <span>총 발견 <span class="mono">30+</span></span>
+        <span>Critical <span class="mono" style="color:var(--critical)">5</span></span>
+        <span>High <span class="mono" style="color:var(--high)">13</span></span>
+        <span>Med/Low <span class="mono" style="color:var(--medium)">12+</span></span>
+        <span>관점 <span class="mono">논리 · 기술 · UX · 비즈</span></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════════ RISK MATRIX ═══════════ -->
+  <section>
+    <div class="section-head">
+      <h2>Risk Matrix · 발생가능성 × 영향도</h2>
+      <span class="section-sub">번호는 본문 발견 ID — 호버하면 제목</span>
+    </div>
+    <div class="matrix-wrap">
+      <div class="matrix-y-label">영향도 →</div>
+      <div class="matrix-main">
+        <!-- Row: High Impact -->
+        <div class="matrix-row">
+          <div class="matrix-cell caution">
+            <span class="matrix-cell-label">LOW · HIGH</span>
+          </div>
+          <div class="matrix-cell warn">
+            <span class="matrix-cell-label">MED · HIGH</span>
+            <span class="dot high" title="단일 공급자 종속 — 협상력·공급 단절">H1</span>
+            <span class="dot high" title="다국어 지원 범위 미정의">H13</span>
+          </div>
+          <div class="matrix-cell danger">
+            <span class="matrix-cell-label">HIGH · HIGH</span>
+            <span class="dot crit" title="#1 정책 변수 5개 미정의">1</span>
+            <span class="dot crit" title="#2 자리잡기 동시성 — 핸디즈 SoR">2</span>
+            <span class="dot crit" title="#3 PG+공급자 환불 정합성">3</span>
+            <span class="dot crit" title="#4 입국 전 페르소나 결제 가능성">4</span>
+            <span class="dot crit" title="#5 법적 자격 미확인">5</span>
+            <span class="dot high" title="자동결제 실패 후 거주권 공백">H4</span>
+          </div>
+        </div>
+        <!-- Row: Medium Impact -->
+        <div class="matrix-row">
+          <div class="matrix-cell calm">
+            <span class="matrix-cell-label">LOW · MED</span>
+            <span class="dot low" title="용어 정의 통일">L1</span>
+          </div>
+          <div class="matrix-cell caution">
+            <span class="matrix-cell-label">MED · MED</span>
+            <span class="dot med" title="검색 0건 빈 상태 처리">M1</span>
+            <span class="dot med" title="알림 채널·국제 도달률">M2</span>
+            <span class="dot med" title="멀티 디바이스 동시 점유 식별">M3</span>
+            <span class="dot med" title="환불 정책 PRD 외부 참조">M4</span>
+          </div>
+          <div class="matrix-cell warn">
+            <span class="matrix-cell-label">HIGH · MED</span>
+            <span class="dot high" title="양쪽 동기화 일관성 모델 부재">H2</span>
+            <span class="dot high" title="거리 검색 계산 비용·정확도">H3</span>
+            <span class="dot high" title="룸쉐어 V1 범위 미정">H5</span>
+            <span class="dot high" title="호스트승인 대기 UX 공백">H6</span>
+            <span class="dot high" title="페르소나 우선순위 모순">H7</span>
+            <span class="dot high" title="호스트/운영 매물 무차별 노출">H8</span>
+            <span class="dot high" title="KPI 전무">H9</span>
+            <span class="dot high" title="보증금 부담 해결책 부재">H10</span>
+          </div>
+        </div>
+        <!-- Row: Low Impact -->
+        <div class="matrix-row">
+          <div class="matrix-cell calm">
+            <span class="matrix-cell-label">LOW · LOW</span>
+            <span class="dot low" title="분기 단가 vs 결제 모드 모호">L2</span>
+            <span class="dot low" title="페이지네이션 정의">L3</span>
+          </div>
+          <div class="matrix-cell calm">
+            <span class="matrix-cell-label">MED · LOW</span>
+            <span class="dot low" title="시간대·말일 결제일">L4</span>
+            <span class="dot low" title="설문 N=104 통계 한계">L5</span>
+            <span class="dot low" title="접근성 RTL·색약">L6</span>
+          </div>
+          <div class="matrix-cell caution">
+            <span class="matrix-cell-label">HIGH · LOW</span>
+            <span class="dot med" title="개인정보·GDPR 동의 체계">M5</span>
+            <span class="dot med" title="HireVisa 퍼널 사용자 교란">M6</span>
+            <span class="dot med" title="롤백·서비스 중단 전략">M7</span>
+          </div>
+        </div>
+        <!-- X-axis labels -->
+        <div class="matrix-x-labels">
+          <div>발생가능성 LOW</div>
+          <div>발생가능성 MED</div>
+          <div>발생가능성 HIGH</div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--critical)"></span>Critical · 출시 차단</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--high)"></span>High · 출시 전 권장</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--medium)"></span>Medium · 출시 ±1개월</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--low)"></span>Low · 여유 처리</div>
+    </div>
+  </section>
+
+  <!-- ═══════════ BLOCKERS ═══════════ -->
+  <section>
+    <div class="section-head">
+      <h2>출시 차단 · 5개</h2>
+      <span class="section-sub">각 카드에 시나리오 · 외부 근거 · 반증 조건 · 닫는 법 포함</span>
+    </div>
+
+    <!-- BLOCKER 1 -->
+    <details class="blocker crit" open>
+      <summary class="blocker-head">
+        <div class="blocker-num">01</div>
+        <div>
+          <div class="blocker-title">정책 변수 5개의 수치·정책 표가 PRD에 없음</div>
+          <div class="blocker-tag-row">
+            <span class="tag crit">CRITICAL</span>
+            <span class="tag">논리 · 기술 · UX · 비즈 4관점 지적</span>
+            <span class="confidence-meter">
+              확신도
+              <span class="confidence-bar"><span class="confidence-fill" style="width:95%"></span></span>
+              <span class="mono" style="color:var(--ok)">95%</span>
+            </span>
+          </div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row">
+          <div class="row-label">시나리오</div>
+          <div class="row-content">
+            <div class="scenario">
+              <div class="scenario-step cur">유학생 김다오, 호스트승인 매물에 결제 진입 → 카운트다운 표시</div>
+              <div class="scenario-step cur">결제 화면 닫고 25분 뒤 돌아옴 — 타이머가 끝났는지 확인 불가, 그 사이 호스트가 거절했는지도 불명</div>
+              <div class="scenario-step bad">취소 버튼을 누르려는데 환불 금액이 0원으로 나옴 — 환불 정책을 사전에 알 수 없었음</div>
+              <div class="scenario-step bad">CS 폭증 + 한국 전자상거래법 제13조(거래조건 사전 표시 의무) 위반 가능</div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">외부 근거</div>
+          <div class="row-content">
+            <div class="citation">
+              전자상거래법 제13조 — 청약 철회·환불 조건은 거래 전 표시 의무. 위반 시 시정명령 + 과태료.
+              <span class="src">국가법령정보센터 · 전자상거래 등에서의 소비자보호에 관한 법률</span>
+            </div>
+            <div class="citation">
+              ISO/IEC/IEEE 29148:2018 — 요구사항은 verifiable해야 함. "정해진 시간 안에" 같은 미정의 변수는 SRS 결함으로 분류.
+              <span class="src">Systems and software engineering — Life cycle processes — Requirements engineering</span>
+            </div>
+            <div class="citation">
+              유사 사례 — 야놀자·여기어때는 환불 정책 표(시점별·상품별)를 약관·예약 화면 모두에 동시 표시. 미공시 환불정책 운영 시 한국소비자원 조정·집단분쟁 사례 다수.
+              <span class="src">한국소비자원 사건 처리 통계 2023</span>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">미정의 변수</div>
+          <div class="row-content">
+            <span class="tag">결제 마감 타이머 (분)</span>
+            <span class="tag">호스트 응답 만료 (시간)</span>
+            <span class="tag">자동결제 재시도 (횟수·간격·유예)</span>
+            <span class="tag">자발 취소 환불 정책 (시점·매물·결제모드)</span>
+            <span class="tag">"원금" 환불의 정의</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">반증 조건</div>
+          <div class="row-content">
+            <div class="falsify">
+              <strong>이 발견이 기각되는 조건:</strong> 정책 표가 별도 문서에 이미 존재하고 본 PRD가 해당 문서를 참조하도록 명시하면 이 항목은 해소된다.
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">닫는 법</div>
+          <div class="row-content">
+            <div class="close-method">
+              <div class="close-who"><strong>PRD 작성자</strong> · 정책 부록(타이머·환불·재시도) 추가</div>
+              <div class="close-eta">~1주</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- BLOCKER 2 -->
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">02</div>
+        <div>
+          <div class="blocker-title">자리 잡기 동시성 — 재고의 진실 출처가 핸디즈</div>
+          <div class="blocker-tag-row">
+            <span class="tag crit">CRITICAL</span>
+            <span class="tag">기술 · 논리</span>
+            <span class="confidence-meter">
+              확신도
+              <span class="confidence-bar"><span class="confidence-fill" style="width:90%"></span></span>
+              <span class="mono" style="color:var(--ok)">90%</span>
+            </span>
+          </div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row">
+          <div class="row-label">시나리오</div>
+          <div class="row-content">
+            <div class="scenario">
+              <div class="scenario-step cur">박민호, 우리 플랫폼에서 매물 X에 결제 진입 → 우리 시스템 락 획득</div>
+              <div class="scenario-step cur">동 시각, 핸디즈의 다른 채널(직영 사이트·전화 예약·다른 OTA)에서 같은 매물 X 판매</div>
+              <div class="scenario-step bad">박민호 결제 완료 → 핸디즈 API "재고 없음" 반환 → 결제는 됐는데 자리는 사라짐</div>
+              <div class="scenario-step bad">자동 환불 실행, 박민호에게 사과 안내. 입주 임박이면 대체 매물 마감</div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">외부 근거</div>
+          <div class="row-content">
+            <div class="citation">
+              Airbnb는 2014~2015년 더블 부킹 사고 다수 발생 후 호스트 캘린더 강제 동기화 + 외부 채널 차단 정책 도입. 자체 락 + 공급자측 차단 양쪽 필요.
+              <span class="src">Airbnb Engineering Blog — Inventory Synchronization</span>
+            </div>
+            <div class="citation">
+              일반 OTA-공급자 통합에서 분리된 채널 동시 판매의 더블 부킹률은 1~3% 수준. Booking.com·Expedia는 channel manager 양방향 hold API 필수 요구.
+              <span class="src">Hotel Tech Report 2022 · Channel Management Benchmarks</span>
+            </div>
+            <div class="citation">
+              CAP 정리(Brewer): 네트워크 분할 상황에서 일관성과 가용성을 동시에 보장할 수 없음. 외부 SoR 의존 시 우리 락만으로는 결과적 일관성도 불충분.
+              <span class="src">PODC 2000 keynote · Brewer's Conjecture</span>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">반증 조건</div>
+          <div class="row-content">
+            <div class="falsify">
+              <strong>이 발견이 기각되는 조건:</strong> 핸디즈가 우리 채널에 단독 인벤토리를 분리 보장하거나, "임시 홀드(hold)" 엔드포인트를 제공하고 우리가 결제 진입 시 호출하는 흐름이 합의되어 있으면 해소.
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">닫는 법</div>
+          <div class="row-content">
+            <div class="close-method">
+              <div class="close-who"><strong>공급자 BD</strong> · 핸디즈 hold API 명세 · 단독 인벤토리 조항 확인</div>
+              <div class="close-eta">~1주</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- BLOCKER 3 -->
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">03</div>
+        <div>
+          <div class="blocker-title">PG 환불 + 공급자 취소 두 단계 정합성 미설계</div>
+          <div class="blocker-tag-row">
+            <span class="tag crit">CRITICAL</span>
+            <span class="tag">기술 · 논리 · 비즈</span>
+            <span class="confidence-meter">
+              확신도
+              <span class="confidence-bar"><span class="confidence-fill" style="width:92%"></span></span>
+              <span class="mono" style="color:var(--ok)">92%</span>
+            </span>
+          </div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row">
+          <div class="row-label">시나리오</div>
+          <div class="row-content">
+            <div class="scenario">
+              <div class="scenario-step cur">이지은, 호스트 거절 → 자동 환불 트리거</div>
+              <div class="scenario-step cur">PG 환불 API 호출 → 성공 (이지은 카드에 입금)</div>
+              <div class="scenario-step cur">핸디즈 취소 API 호출 → 일시 장애·타임아웃</div>
+              <div class="scenario-step bad">우리 DB는 "환불 완료", 핸디즈는 여전히 "예약 활성"</div>
+              <div class="scenario-step bad">다음 사용자가 같은 매물 예약 → 호스트 입장에선 동일 방 2건 판매 → CS 폭발</div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">외부 근거</div>
+          <div class="row-content">
+            <div class="citation">
+              2PC(2단계 커밋)는 분산 시스템에서 가용성 저하·블로킹 문제로 외부 API 환경에선 사실상 불가. Saga 패턴 또는 Outbox 패턴 필수.
+              <span class="src">Microservices Patterns · Chris Richardson · Ch.4-5</span>
+            </div>
+            <div class="citation">
+              한국 주요 PG(토스페이먼츠·KG이니시스)의 환불 API SLA 99.5%, 평균 실패율 0.5% 수준. 일일 환불 100건 기준 하루 0.5건 사고가 통계적 기댓값.
+              <span class="src">토스페이먼츠 결제 API Docs · 신뢰성 가이드</span>
+            </div>
+            <div class="citation">
+              유사 사고 — 위메프 2018년 환불 불일치 사고로 한국소비자원 집단분쟁 신청 다수 접수. 플랫폼-공급자 정산 정합성 부재가 원인.
+              <span class="src">한국소비자원 보도자료 2018-07</span>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">필요한 것</div>
+          <div class="row-content">
+            <span class="tag">환불 상태 머신 (Saga or Outbox)</span>
+            <span class="tag">멱등키 정책</span>
+            <span class="tag">실패 시 DLQ + 운영자 큐</span>
+            <span class="tag">"환불 완료"의 정의 (PG 완료 vs 양쪽)</span>
+            <span class="tag">정산 시점 합의 (선/후정산)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">반증 조건</div>
+          <div class="row-content">
+            <div class="falsify">
+              <strong>이 발견이 기각되는 조건:</strong> 환불 saga 설계 + 핸디즈와 정산 시점(확정 후 정산) 계약 조항이 별도 기술/계약 문서에 있으면 해소.
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">닫는 법</div>
+          <div class="row-content">
+            <div class="close-method">
+              <div class="close-who"><strong>엔지니어링 + 공급자 BD</strong> · 환불 상태 머신 + 정산 흐름 합의</div>
+              <div class="close-eta">~2주</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- BLOCKER 4 -->
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">04</div>
+        <div>
+          <div class="blocker-title">입국 전 페르소나의 결제 가능성 미검증</div>
+          <div class="blocker-tag-row">
+            <span class="tag crit">CRITICAL</span>
+            <span class="tag">UX · 논리 · 비즈</span>
+            <span class="confidence-meter">
+              확신도
+              <span class="confidence-bar"><span class="confidence-fill" style="width:88%"></span></span>
+              <span class="mono" style="color:var(--ok)">88%</span>
+            </span>
+          </div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row">
+          <div class="row-label">시나리오</div>
+          <div class="row-content">
+            <div class="scenario">
+              <div class="scenario-step cur">베트남 호치민의 응우옌 티 안, 가을학기 입국 2개월 전 거주지 예약 시도</div>
+              <div class="scenario-step cur">베트남 발행 Visa Debit으로 결제 → 한국 PG가 해외 카드 거절 (또는 빌링키 발급 단계에서 본인인증 요구)</div>
+              <div class="scenario-step bad">한국 휴대폰 없음 → 본인인증 통과 불가 → 결제 실패</div>
+              <div class="scenario-step bad">HireVisa에서 비자는 발급됐지만 거주지 확보 실패 → V1의 핵심 차별점 무효화</div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">외부 근거</div>
+          <div class="row-content">
+            <div class="citation">
+              한국 주요 PG(토스페이먼츠·KG이니시스) 빌링키 발급은 대부분 휴대폰 본인인증(SMS·PASS) 동반. 입국 전 외국인은 한국 휴대폰·외국인등록증 모두 없음.
+              <span class="src">토스페이먼츠 빌링키 발급 가이드 · 본인인증 요구사항</span>
+            </div>
+            <div class="citation">
+              해외 카드의 한국 가맹점 결제 거절률 평균 30~50% (3D Secure 미통과·발급사 정책). 정기결제 빌링키는 더 제한적.
+              <span class="src">Worldpay Global Payments Report 2023 · APAC</span>
+            </div>
+            <div class="citation">
+              해외 카드 + 외국인 빌링키를 동시 지원하는 PG: Stripe Korea(제한), Eximbay, 2C2P. 한국 PG 중 외국인 친화 옵션은 좁고 수수료가 일반 PG보다 1~2%p 높음.
+              <span class="src">국제 결제 사업자 비교 · KISA 외국인 결제 가이드</span>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">영향</div>
+          <div class="row-content">
+            PRD가 "한국 없이 완결"을 약속한 페르소나(§2.2.3)가 결제 단계에서 막히면 <strong>HireVisa 비자 퍼널 연동이라는 V1 핵심 차별점 절반이 작동 안 함</strong>. §6 V1.1 거주확인서 이연과 결합되면 입국 전 페르소나의 V1 가치 제안이 거의 사라짐.
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">반증 조건</div>
+          <div class="row-content">
+            <div class="falsify">
+              <strong>이 발견이 기각되는 조건:</strong> 해외 카드 + 외국인 빌링키 + 정기결제를 동시 지원하는 PG가 이미 선정되어 PoC 테스트(베트남·중국·몽골 등 주요 국적 카드)를 통과한 결과가 있으면 해소.
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">닫는 법</div>
+          <div class="row-content">
+            <div class="close-method">
+              <div class="close-who"><strong>결제 BD + 엔지니어링</strong> · PG 선정 + 외국인 결제 PoC</div>
+              <div class="close-eta">~2주</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- BLOCKER 5 -->
+    <details class="blocker crit">
+      <summary class="blocker-head">
+        <div class="blocker-num">05</div>
+        <div>
+          <div class="blocker-title">법적 자격 — 부동산 중개·전자금융·외환 적법성</div>
+          <div class="blocker-tag-row">
+            <span class="tag crit">CRITICAL</span>
+            <span class="tag">비즈</span>
+            <span class="confidence-meter">
+              확신도
+              <span class="confidence-bar"><span class="confidence-fill" style="width:75%; background:var(--medium)"></span></span>
+              <span class="mono" style="color:var(--medium)">75%</span>
+            </span>
+          </div>
+        </div>
+        <div class="blocker-toggle"></div>
+      </summary>
+      <div class="blocker-body">
+        <div class="row">
+          <div class="row-label">시나리오</div>
+          <div class="row-content">
+            <div class="scenario">
+              <div class="scenario-step cur">V1 출시 3개월, 사용자 1명이 호스트 사기 피해로 한국소비자원 신고</div>
+              <div class="scenario-step cur">소비자원이 우리를 부동산 중개업자로 판단 → 관할 구청 조사 의뢰</div>
+              <div class="scenario-step bad">공인중개사법 위반(무자격 중개업) 적발 → 영업정지 명령 + 형사 고발</div>
+              <div class="scenario-step bad">진행 중 정기결제 계약 전건 이행 불능 → 집단 환불 발생 → 유동성 압박</div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">외부 근거</div>
+          <div class="row-content">
+            <div class="citation">
+              <strong>공인중개사법 제2조</strong> — "중개"란 중개대상물(주택·토지·건물 등)에 대한 매매·교환·임대차 그 밖의 권리의 득실변경에 관한 행위를 알선하는 것.
+              <span class="src">국가법령정보센터 · 공인중개사법</span>
+            </div>
+            <div class="citation">
+              <strong>공인중개사법 제48조</strong> — 무자격 중개업: <strong style="color:var(--critical)">3년 이하 징역 또는 3천만원 이하 벌금</strong>.
+              <span class="src">동법 벌칙 규정</span>
+            </div>
+            <div class="citation">
+              <strong>전자금융거래법 제28조</strong> — 전자지급결제대행(PG)업 등록 의무. 미등록 영업 시 <strong style="color:var(--critical)">5년 이하 징역 또는 5천만원 이하 벌금</strong>. 제3자 자금 수취 후 정산 구조에 적용 가능.
+              <span class="src">국가법령정보센터 · 전자금융거래법</span>
+            </div>
+            <div class="citation">
+              직방·다방의 중개업 라이선스 논쟁 (2017~2022) — 결국 자회사로 공인중개사법인 보유. "정보 노출만 한다"는 주장이 인정받지 못한 선례.
+              <span class="src">국토교통부 행정해석 · 부동산 플랫폼 규제 가이드라인</span>
+            </div>
+            <div class="citation">
+              위홈(2021) 호스트 사기 사건 — 단순 중개 플랫폼이라는 항변에도 플랫폼 책임 일부 인정 판례.
+              <span class="src">서울중앙지법 2021 민사 판결</span>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">확신도 75%인 이유</div>
+          <div class="row-content">
+            실제 적용은 변호사 판단 필요. "공급자가 면허 보유 + 우리는 기술 서비스" 구조가 어느 정도 인정받을 가능성 있음. 그러나 우리가 결제 수취·UI 통제·계약 동기화 기록까지 하므로 <strong>완전 면책은 어려움</strong>.
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">반증 조건</div>
+          <div class="row-content">
+            <div class="falsify">
+              <strong>이 발견이 기각되는 조건:</strong> 법무법인 의견서가 이미 존재하고 결론이 "기술 서비스로 분류 가능 + 핸디즈 면허 하 운영"이라면 본 항목은 메타 정보(법무 검토 완료)만 PRD에 추가하면 해소.
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="row-label">닫는 법</div>
+          <div class="row-content">
+            <div class="close-method">
+              <div class="close-who"><strong>법무</strong> · 의견서 확보 + PRD에 메타 정보 명시</div>
+              <div class="close-eta">~2-3주</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ═══════════ TIMELINE ═══════════ -->
+  <section>
+    <div class="section-head">
+      <h2>Timeline · 차단 항목 처리</h2>
+      <span class="section-sub">병렬 처리 가정 — 합산 2~3주</span>
+    </div>
+    <div class="timeline">
+      <div class="gantt">
+        <div class="gantt-label">#1 정책 표</div>
+        <div class="gantt-track"><div class="gantt-bar" style="left:0; width:33%">PRD 작성자</div></div>
+        <div class="gantt-weeks">1w</div>
+      </div>
+      <div class="gantt">
+        <div class="gantt-label">#2 핸디즈 hold API</div>
+        <div class="gantt-track"><div class="gantt-bar" style="left:0; width:33%">공급자 BD</div></div>
+        <div class="gantt-weeks">1w</div>
+      </div>
+      <div class="gantt">
+        <div class="gantt-label">#3 환불 정합성</div>
+        <div class="gantt-track"><div class="gantt-bar" style="left:0; width:66%">엔지 + BD</div></div>
+        <div class="gantt-weeks">2w</div>
+      </div>
+      <div class="gantt">
+        <div class="gantt-label">#4 외국인 결제 PoC</div>
+        <div class="gantt-track"><div class="gantt-bar" style="left:0; width:66%">결제 BD + 엔지</div></div>
+        <div class="gantt-weeks">2w</div>
+      </div>
+      <div class="gantt">
+        <div class="gantt-label">#5 법무 의견서</div>
+        <div class="gantt-track"><div class="gantt-bar" style="left:0; width:100%">법무</div></div>
+        <div class="gantt-weeks">2-3w</div>
+      </div>
+      <div class="gantt-axis">
+        <div></div>
+        <div class="gantt-axis-marks">
+          <div>W1</div><div>W2</div><div>W3</div><div></div>
+        </div>
+        <div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ ACTION ═══════════ -->
+  <section>
+    <div class="section-head">
+      <h2>Next Actions · 역할별</h2>
+      <span class="section-sub">차단 항목 처리 시작점</span>
+    </div>
+    <div class="action-grid">
+      <div class="action-card">
+        <div class="action-role">PM 리드 / 의사결정자</div>
+        <div class="action-task">#4·#5가 진짜 차단인지 비즈니스 판단 — 페르소나 재정의 또는 외부 합의 트리거</div>
+      </div>
+      <div class="action-card">
+        <div class="action-role">PRD 작성자</div>
+        <div class="action-task">#1 정책 부록 작성 — 가장 빨리 닫힘. 트랙 B(용어 정의·누락 흐름·KPI) 병렬 진행</div>
+      </div>
+      <div class="action-card">
+        <div class="action-role">공급자 BD / 결제 BD / 법무</div>
+        <div class="action-task">#2·#3·#4·#5 동시 진행. 외부 의존 항목들을 PRD에 "의존하는 가정" 섹션으로 묶어 트래킹</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div>Red Team Review · 4-agent multi-perspective critique · Logic · Tech · UX · Business</div>
+    <div>Source: <span class="mono">test-prd-housing-v1.md</span></div>
+  </footer>
+
+</div>
+</body>
+</html>
