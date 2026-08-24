@@ -1,6 +1,6 @@
 ---
 description: Multi-agent red-team review for proposal-style documents. Supports domain modes (-prd, -sec, -rfc, -biz) tailoring four parallel critics to each domain. Outputs a single HTML dashboard.
-argument-hint: [-prd|-sec|-rfc|-biz] <file path or pasted content>
+argument-hint: "[-prd|-sec|-rfc|-biz] <file path or pasted content>"
 ---
 
 # Red Team Review

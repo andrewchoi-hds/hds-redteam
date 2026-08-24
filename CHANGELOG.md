@@ -3,6 +3,20 @@
 All notable changes to hds-redteam are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.1] — 2026-08-24
+
+### Fixed
+- `commands/redteam.md` frontmatter failed to parse as YAML: the
+  `argument-hint` value began with `[`, which YAML reads as a flow sequence,
+  so the whole block was invalid and **every frontmatter field was silently
+  dropped at runtime** (description, argument-hint). The value is now quoted.
+  Caught by `claude plugin tag`'s deep validation, which checks per-file
+  frontmatter that `claude plugin validate` does not.
+
+### Added
+- `description` field in `.claude-plugin/marketplace.json` (clears a validator
+  warning and describes the marketplace in listings).
+
 ## [1.2.0] — 2026-05-30
 
 ### Added
