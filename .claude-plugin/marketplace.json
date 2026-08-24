@@ -1,5 +1,6 @@
 {
   "name": "hds-redteam-marketplace",
+  "description": "Red-team review tooling for proposal-style documents: PRDs, technical RFCs, business plans, and security reviews.",
   "owner": {
     "name": "andrew",
     "url": "https://github.com/andrewchoi-hds"
