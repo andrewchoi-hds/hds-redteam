@@ -44,6 +44,41 @@ Then in Claude Code:
 /plugin install hds-redteam
 ```
 
+## Team / organization deployment
+
+The GitHub repo *is* the marketplace — nobody needs to clone it by hand.
+
+**Each teammate, one time:**
+
+```
+/plugin marketplace add andrewchoi-hds/hds-redteam
+/plugin install hds-redteam@hds-redteam-marketplace
+```
+
+**Or auto-enable it for everyone who opens a shared repo** — commit this to that
+repo's `.claude/settings.json` and teammates get the plugin on trust-prompt
+accept, with no commands to run:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "hds-redteam-marketplace": {
+      "source": { "source": "github", "repo": "andrewchoi-hds/hds-redteam" }
+    }
+  },
+  "enabledPlugins": { "hds-redteam@hds-redteam-marketplace": true }
+}
+```
+
+**Org-wide (admin):** the same two keys work in managed settings, which applies
+to every user in the organization. See
+[managed settings](https://code.claude.com/docs/en/managed-settings.md) and
+[plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces.md).
+
+> Adding the marketplace from a **local directory** instead (`/plugin
+> marketplace add /path/to/hds-redteam`) only works on your own machine — handy
+> for developing the plugin, useless for sharing it.
+
 ## Updating
 
 Installed plugins are **cached** — a new release on GitHub does not update your
