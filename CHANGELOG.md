@@ -3,6 +3,17 @@
 All notable changes to hds-redteam are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0] — 2026-10-20
+
+### Added
+- `/draft` — writes a PRD draft (개요 / 유저 스토리 / 스토리별 요구사항) from a
+  one-line brief or reference files, as the authoring counterpart to `/redteam`.
+  It will not invent numbers: timers, limits and policies it cannot know go into
+  a **미정** list, and anything inferred is tagged `[가정]`, so the draft hands
+  `/redteam -prd` a concrete list of things to challenge.
+  Deliberately uses no subagents — parallel authors contradict each other, and
+  the four critic agents are hard-wired to report weaknesses only.
+
 ## [1.2.1] — 2026-08-24
 
 ### Fixed

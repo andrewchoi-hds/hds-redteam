@@ -1,8 +1,8 @@
 # hds-redteam
 
-> Multi-agent red-team review for proposal-style documents. Four parallel critics + five domain modes produce a single HTML dashboard grounded in concrete scenarios, external citations, confidence scores, and falsification conditions.
+> Write a PRD, then tear it apart. `/draft` produces a reviewable first draft; `/redteam` runs four parallel critics across five domain modes and renders a single HTML dashboard grounded in concrete scenarios, external citations, confidence scores, and falsification conditions.
 
-**[Live demo](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-prd-review.html)** · [Install](#install) · [Usage](#usage) · [Modes](#modes) · [How it works](#how-it-works)
+**[Live demo](https://andrewchoi-hds.github.io/hds-redteam/examples/housing-prd-review.html)** · [Install](#install) · [Usage](#usage) · [Draft](#drafting-a-prd) · [Modes](#modes) · [How it works](#how-it-works)
 
 ---
 
@@ -119,6 +119,12 @@ Examples:
 /redteam path/to/any-proposal.md              # General (no mode)
 ```
 
+And to write the document in the first place:
+
+```
+/draft <한 줄 설명 또는 참고 자료 경로>          # PRD 초안
+```
+
 The command:
 
 1. Parses the mode flag (if any)
@@ -129,6 +135,33 @@ The command:
 6. Prints a short inline summary with the verdict and top blockers
 
 Open the HTML in any browser. No build step. No external dependencies.
+
+## Drafting a PRD
+
+`/redteam` critiques a document. `/draft` writes the first one.
+
+```
+/draft <한 줄 설명 또는 참고 자료 경로>
+```
+
+It produces a Markdown PRD with exactly three sections — **개요** (overview),
+**유저 스토리** (user stories), and **스토리별 요구사항** (requirements per
+story) — and it deliberately refuses to invent numbers. Timers, limits, ratios
+and policies it cannot know are left in a **미정** (undecided) list, and
+anything inferred rather than given is tagged `[가정]` (assumption).
+
+That is the whole point: a draft's job is to make the open questions visible,
+so the review has something real to bite on.
+
+```
+/draft 외국인 유학생용 월세 자동이체 기능
+/redteam -prd 월세-자동이체-기획서.md
+```
+
+Drafting uses **no subagents**. Unlike review, parallel authors produce sections
+that contradict each other and need re-stitching — one command, one coherent
+document. The four critic agents are also unusable here: they are hard-wired to
+report weaknesses only.
 
 ## Modes
 
@@ -229,7 +262,8 @@ hds-redteam/
 │   ├── redteam-ux.md
 │   └── redteam-business.md
 ├── commands/
-│   └── redteam.md
+│   ├── draft.md              # /draft  — write a PRD
+│   └── redteam.md            # /redteam — critique a document
 ├── templates/
 │   └── dashboard.html        # canonical dashboard template + data contract
 ├── examples/                 # sample inputs + one rendered dashboard per mode
