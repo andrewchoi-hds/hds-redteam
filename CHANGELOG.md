@@ -3,6 +3,20 @@
 All notable changes to hds-redteam are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.2] — 2026-10-20
+
+### Fixed
+- Risk-matrix cell labels (`LOW · HIGH`, `HIGH · HIGH`, …) were overlapped by the
+  finding dots. `.matrix-cell` filled from the top-left while the label sat
+  absolutely positioned at the top-right, so any cell holding more than one row
+  of dots covered its own axis label. The cell now reserves the label's height
+  (`padding: 28px 12px 12px`). Surfaced only on a dense real document — the
+  shipped demos top out at a handful of dots per cell, so it stayed invisible
+  through four releases.
+
+### Changed
+- All four example dashboards re-synced with the fixed template CSS.
+
 ## [1.3.1] — 2026-10-20
 
 ### Fixed
