@@ -3,6 +3,16 @@
 All notable changes to hds-redteam are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.1] — 2026-10-20
+
+### Fixed
+- `/redteam` named its four agents by bare name (`redteam-logic`, …), which does
+  not resolve for anyone who installed the plugin — agents provided by a plugin
+  are namespaced (`hds-redteam:redteam-logic`). The command now names them
+  exactly. This was broken for every external install since 1.1.0; it stayed
+  hidden locally because same-named agents happened to exist in the project's
+  own `.claude/agents/` directory and shadowed the problem.
+
 ## [1.3.0] — 2026-10-20
 
 ### Added

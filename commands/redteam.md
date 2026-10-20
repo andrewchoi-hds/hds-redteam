@@ -53,10 +53,13 @@ Based on the parsed mode, prepare a context block to inject verbatim at the top 
 
 Send all four Agent calls in **the same message** (parallel execution mandatory):
 
-- `redteam-logic` — logical consistency
-- `redteam-technical` — technical feasibility
-- `redteam-ux` — user / audience perspective
-- `redteam-business` — business / risk
+- `hds-redteam:redteam-logic` — logical consistency
+- `hds-redteam:redteam-technical` — technical feasibility
+- `hds-redteam:redteam-ux` — user / audience perspective
+- `hds-redteam:redteam-business` — business / risk
+
+Use these agent names exactly as written. They are plugin-namespaced; the bare
+names (`redteam-logic`, …) do not resolve for anyone who installed this plugin.
 
 For each agent, pass:
 1. The **domain context block** from step 2
